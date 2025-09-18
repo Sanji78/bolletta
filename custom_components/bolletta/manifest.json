@@ -1,0 +1,14 @@
+{
+  "domain": "bolletta",
+  "name": "Calcolo bolletta elettrica",
+  "codeowners": ["@Sanji78"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Sanji78/bolletta",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Sanji78/bolletta/issues",
+  "loggers": ["custom_components.bolletta"],
+  "requirements": ["holidays","bs4"],
+  "version": "1.0.0"
+}

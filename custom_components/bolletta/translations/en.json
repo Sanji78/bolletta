@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "step2": {
+        "title": "Bill Calculation (1/5)",
+        "description": "Energy cost",
+        "data": {
+          "fix_quota_aggr_measure": "Fixed fee - Measure aggregation (€/month)",
+          "monthly_fee": "Monthly contribution (€/month)",
+          "tariff_type": "Tariff type",
+          "nw_loss_percentage": "Network losses as a percentage (%)",
+          "other_fee": "Other charges - Dispatching (€/kWh)"
+        }
+      },
+      "step3": {
+        "title": "Bill Calculation (2/5)",
+        "description": "Cost for electricity transportation and meter management",
+        "data": {
+          "fix_quota_transport": "Fixed fee (€/month)",
+          "quota_power": "Power fee (€/kW/month)",
+          "power_in_use": "Contracted power (kW)",
+          "energy_sc1": "Energy quota Tier 1 (€/kWh)"
+        }
+      },
+      "step4": {
+        "title": "Bill Calculation (3/5)",
+        "description": "Cost for system charges",
+        "data": {
+          "asos_sc1": "Variable Asos Tier 1 (€/kWh)",
+          "asos_sc2": "Variable Asos Tier 2 (€/kWh)",
+          "arim_sc1": "Variable Arim Tier 1 (€/kWh)",
+          "arim_sc2": "Variable Arim Tier 2 (€/kWh)"
+        }
+      },
+      "step5": {
+        "title": "Bill Calculation (4/5)",
+        "description": "Taxes, VAT, Discounts, and Subscription",
+        "data": {
+          "accisa_tax": "Excise tax (€/kWh)",
+          "iva": "VAT (%)",
+          "discount": "Light Cashback discount (€/month)",
+          "tv_tax": "TV subscription fee for private use (€/month)"
+        }
+      },
+      "step6": {
+        "title": "Bill Calculation (5/5)",
+        "description": "Energy sensor and PUN calculation",
+        "data": {
+          "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
+          "pun_sensor": "Choose the sensor to be used for the PUN price",
+          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Unknown error"
+    },
+    "abort": {
+      "already_configured": "Integration already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "step2o": {
+        "title": "Bill Calculation (1/5)",
+        "description": "Energy cost",
+        "data": {
+          "fix_quota_aggr_measure": "Fixed fee - Measure aggregation (€/month)",
+          "monthly_fee": "Monthly contribution (€/month)",
+          "tariff_type": "Tariff type",
+          "nw_loss_percentage": "Network losses as a percentage (%)",
+          "other_fee": "Other charges - Dispatching (€/kWh)"
+        }
+      },
+      "step3o": {
+        "title": "Bill Calculation (2/5)",
+        "description": "Cost for electricity transportation and meter management",
+        "data": {
+          "fix_quota_transport": "Fixed fee (€/month)",
+          "quota_power": "Power fee (€/kW/month)",
+          "power_in_use": "Contracted power (kW)",
+          "energy_sc1": "Energy quota Tier 1 (€/kWh)"
+        }
+      },
+      "step4o": {
+        "title": "Bill Calculation (3/5)",
+        "description": "Cost for system charges",
+        "data": {
+          "asos_sc1": "Variable Asos Tier 1 (€/kWh)",
+          "asos_sc2": "Variable Asos Tier 2 (€/kWh)",
+          "arim_sc1": "Variable Arim Tier 1 (€/kWh)",
+          "arim_sc2": "Variable Arim Tier 2 (€/kWh)"
+        }
+      },
+      "step5o": {
+        "title": "Bill Calculation (4/5)",
+        "description": "Taxes, VAT, Discounts, and Subscription",
+        "data": {
+          "accisa_tax": "Excise tax (€/kWh)",
+          "iva": "VAT (%)",
+          "discount": "Light Cashback discount (€/month)",
+          "tv_tax": "TV subscription fee for private use (€/month)"
+        }
+      },
+      "step6o": {
+        "title": "Bill Calculation (5/5)",
+        "description": "Energy sensor and PUN calculation",
+        "data": {
+          "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
+          "pun_sensor": "Choose the sensor to be used for the PUN price",
+          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price"
+        }
+      }
+    }
+  }
+}

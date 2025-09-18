@@ -1,0 +1,17 @@
+# Python & build
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+
+# Home Assistant
+.storage/
+home-assistant.log
