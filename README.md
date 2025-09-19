@@ -14,7 +14,7 @@ Custom Home Assistant integration that estimates your **electricity bill** based
 
 - Exposes several **sensor entities** representing bill items (energy fixed fee, energy consumption cost, transport fees, system charges, excise, VAT, total).
 - Calculations rely on configurable values (fixed fees, network loss percentage, variable charges, VAT, cashback discount, TV license).
-- **PUN (zonal average price) is calculated internally** by the integration; you no longer need to provide external PUN sensors. The integration still supports using an external PUN sensor if you prefer, but it is not required.
+- **PUN (zonal average price) is calculated internally** by the integration; you no longer need to provide external PUN sensors.
 - Built with a coordinator (`PUNDataUpdateCoordinator`) and sensors that compute values on update/poll.
 - Compatible with Home Assistant via a **Config Flow** (no YAML configuration required).
 
