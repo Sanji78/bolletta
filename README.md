@@ -70,8 +70,6 @@ Custom Home Assistant integration that estimates your **electricity bill** based
 - `discount` — Cashback discount (€/month)
 - `tv_tax` — TV license (€/month)
 - `monthly_entity_sensor` — **Monthly energy sensor** (must be a `sensor` with device_class `energy` and provide `state` and attribute `last_period`). This is still required: the integration uses this sensor as the primary source of monthly consumption.
-- `pun_sensor` — *(optional)* Current PUN price sensor — NOT REQUIRED as the integration computes PUN natively.
-- `pun_mp_sensor` — *(optional)* Previous-month PUN price sensor — NOT REQUIRED.
 
 ---
 
