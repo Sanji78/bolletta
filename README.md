@@ -126,7 +126,7 @@ The integration creates the following sensors (entity_id):
 - `monthly_entity_sensor` must be a consumption sensor that provides:
   - `.state` → monthly consumption (numeric).
   - `.attributes['last_period']` → previous period consumption (used for bi-monthly calculation).
-- **PUN sensors are no longer required** because the integration calculates PUN internally. If you prefer, you can still provide `pun_sensor` / `pun_mp_sensor` to override the internal calculation.
+- **PUN sensors are no longer required** because the integration calculates PUN internally. 
 
 If these sensors are missing or don't provide the expected data, calculations may fail or generate errors in the log.
 
