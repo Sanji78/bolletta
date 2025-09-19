@@ -49,7 +49,7 @@ Custom Home Assistant integration that estimates your **electricity bill** based
 1. In Home Assistant: **Settings → Devices & Services → Add Integration**.
 2. Search for **Bolletta** and follow the configuration flow:
    - The config flow will ask for several numeric defaults (fees, charges, VAT, etc.) and **one sensor**: the monthly energy sensor (see requirements below).
-   - PUN sensors are calculated natively by the integration, so you do **not** need to add external PUN sensors anymore. If you already have PUN sensors, they may still be used as an override (optional).
+   - PUN sensors are calculated natively by the integration, so you do **not** need to add external PUN sensors anymore. 
    - All values can be changed later via the integration **Options**.
 
 > Note: The integration provides an options flow to update parameters after initial setup.
