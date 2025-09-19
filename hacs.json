@@ -1,5 +1,6 @@
 {
   "name": "Bolletta",
   "render_readme": true,
-  "homeassistant": "2025.8.1"
+  "homeassistant": "2025.8.1",
+  "country": "IT"
 }

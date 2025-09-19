@@ -12,9 +12,7 @@ BILL_ASOS_ARIM_QUOTE = 6
 BILL_ACCISA_TAX = 7
 BILL_IVA = 8
 BILL_TOTAL = 9
-
-# Tipi di aggiornamento
-COORD_EVENT = "coordinator_event"
+BILL_KWH_PRICE = 10
 
 # Parametri configurabili da configuration.yaml
 CONF_FIX_QUOTA_AGGR_MEASURE = "fix_quota_aggr_measure"
@@ -36,3 +34,27 @@ CONF_TV_TAX = "tv_tax"
 CONF_MONTHY_ENTITY_SENSOR = "monthly_entity_sensor"
 CONF_PUN_SENSOR = "pun_sensor"
 CONF_PUN_MP_SENSOR = "pun_mp_sensor"
+
+# Tipi di sensore da creare
+PUN_FASCIA_MONO = 0
+PUN_FASCIA_F1 = 1
+PUN_FASCIA_F2 = 2
+PUN_FASCIA_F3 = 3
+PUN_FASCIA_F23 = 4
+
+# Intervalli di tempo per i tentativi
+WEB_RETRIES_MINUTES = [1, 10, 60, 120, 180]
+
+# Tipi di aggiornamento
+COORD_EVENT = "coordinator_event"
+EVENT_UPDATE_FASCIA = "event_update_fascia"
+EVENT_UPDATE_PUN = "event_update_pun"
+EVENT_UPDATE_PREZZO_ZONALE = "event_update_prezzo_zonale"
+
+# Parametri configurabili da configuration.yaml
+CONF_SCAN_HOUR = "scan_hour"
+CONF_ACTUAL_DATA_ONLY = "actual_data_only"
+CONF_ZONA = "zona"
+
+# Parametri interni
+CONF_SCAN_MINUTE = "scan_minute"

@@ -48,7 +48,10 @@
         "data": {
 			"monthly_entity_sensor": "Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
 			"pun_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN",
-			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso"
+			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso",
+            "zona": "Zona geografica per prezzi zonali",
+            "scan_hour": "Ora inizio download dati (0-23)",
+            "actual_data_only": "Usa solo dati reali ad inizio mese"
 		}
       }
     },
@@ -108,7 +111,10 @@
         "data": {
 			"monthly_entity_sensor": "Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
 			"pun_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN",
-			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso"
+			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso",
+            "zona": "Zona geografica per prezzi zonali",
+            "scan_hour": "Ora inizio download dati (0-23)",
+            "actual_data_only": "Usa solo dati reali ad inizio mese"
 		}
       }
       }
