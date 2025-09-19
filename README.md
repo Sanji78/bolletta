@@ -114,6 +114,67 @@ The integration creates the following sensors (entity_id):
   *Total bill*  
   Sum of all items above, VAT, subtract discounts (discount) and add TV license except for November and December (logic present in the code).
 
+- `sensor.bill_kwh_price`  
+  *Price per kWh (effective price used in bill calculations)*  
+  Calculation: `((1 + nw_loss_percentage/100) * pun_mono_orario + other_fee) + energy_sc1 + asos_sc1 + arim_sc1` (sum of per-kWh components; displayed as €/kWh and used to compute energy line items).
+
+- `sensor.pun_mono_orario`  
+  *PUN mono-hourly (zonal average price — current month)*  
+  Calculation: average of the hourly PUN prices for the current month expressed as `€ / kWh` (suggested display precision 6 decimals).
+
+- `sensor.pun_mono_orario_mp`  
+  *PUN mono-hourly — previous month*  
+  Calculation: average of the hourly PUN prices for the previous month expressed as `€ / kWh` (used for bi-monthly / previous-period comparisons).
+
+- `sensor.pun_fascia_f1`  
+  *PUN — average price for tariff band F1 (current month)*  
+  Calculation: average of hourly PUN values that fall into F1 for the current month, expressed as `€ / kWh`.
+
+- `sensor.pun_fascia_f2`  
+  *PUN — average price for tariff band F2 (current month)*  
+  Calculation: average of hourly PUN values that fall into F2 for the current month, expressed as `€ / kWh`.
+
+- `sensor.pun_fascia_f3`  
+  *PUN — average price for tariff band F3 (current month)*  
+  Calculation: average of hourly PUN values that fall into F3 for the current month, expressed as `€ / kWh`.
+
+- `sensor.pun_fascia_f1_mp`  
+  *PUN — average price for tariff band F1 (previous month)*  
+  Calculation: same as `pun_fascia_f1` but computed over the previous month (`€ / kWh`).
+
+- `sensor.pun_fascia_f2_mp`  
+  *PUN — average price for tariff band F2 (previous month)*  
+  Calculation: same as `pun_fascia_f2` but computed over the previous month (`€ / kWh`).
+
+- `sensor.pun_fascia_f3_mp`  
+  *PUN — average price for tariff band F3 (previous month)*  
+  Calculation: same as `pun_fascia_f3` but computed over the previous month (`€ / kWh`).
+
+- `sensor.pun_fascia_f23`  
+  *PUN — combined F2+F3 average (current month)*  
+  Calculation: combined average of F2 and F3 hourly values for the current month (used by some tariff calculations when F2 and F3 are handled together).
+
+- `sensor.pun_fascia_f23_mp`  
+  *PUN — combined F2+F3 average (previous month)*  
+  Calculation: combined average of F2 and F3 hourly values for the previous month.
+
+- `sensor.pun_fascia_corrente`  
+  *Current PUN time band (enum: F1 / F2 / F3)*  
+  Calculation: returns the currently active time band (F1/F2/F3). Attributes include `fascia_successiva`, `inizio_fascia_successiva`, and `termine_fascia_successiva`.
+
+- `sensor.pun_prezzo_fascia_corrente`  
+  *Price for the current time band*  
+  Calculation: the average PUN price for the currently active band (F1/F2/F3) for the relevant period (`€ / kWh`).
+
+- `sensor.pun_prezzo_zonale`  
+  *Zonal hourly price (current hour — zone-aware)*  
+  Calculation: current zonal price for the configured zone (`€ / kWh`). Attributes include hourly zonal prices for today and tomorrow (`oggi_h_00` … `oggi_h_23`, `domani_h_00` … `domani_h_23`) and a `zona` attribute when available.
+
+- `sensor.pun_orario`  
+  *Hourly PUN price for the current hour (with hourly history in attributes)*  
+  Calculation: current PUN for the active hour (`€ / kWh`). Attributes expose the full hourly series for today and tomorrow (`oggi_h_00` … `oggi_h_23`, `domani_h_00` … `domani_h_23`) and a cached `pun_orari` dictionary restored after restart.
+
+
 ### Technical notes about entities
 - Unit: `€` (monetary).  
 - `state` is a formatted number; integration attempts to set `suggested_display_precision` when supported by HA.
@@ -134,10 +195,7 @@ If these sensors are missing or don't provide the expected data, calculations ma
 
 ## 🕘 Updates and calculation behavior
 
-- `PUNDataUpdateCoordinator` holds configuration parameters but **does not** force automatic web updates (no `update_interval` set). Individual sensors perform calculations in `manage_update()` and are configured for polling.
-- To force recalculation:
-  - use the **Refresh entity** action in Home Assistant,
-  - or restart the integration/Home Assistant.
+- `PUNDataUpdateCoordinator` holds configuration parameters and **does** force automatic web updates (every 10 seconds). Individual sensors perform calculations in `manage_update()` and are configured for polling.
 
 ---
 
