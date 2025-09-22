@@ -3,4 +3,8 @@
   "render_readme": true,
   "homeassistant": "2025.8.1",
   "country": "IT"
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 13b1410 (Update README and add internal PUN sensors)

@@ -39,7 +39,8 @@
           "accisa_tax": "Excise tax (€/kWh)",
           "iva": "VAT (%)",
           "discount": "Light Cashback discount (€/month)",
-          "tv_tax": "TV subscription fee for private use (€/month)"
+          "tv_tax": "TV subscription fee for private use (€/month)",
+		  "pun_mode": "PUN Mode"
         }
       },
       "step6": {
@@ -48,8 +49,12 @@
         "data": {
           "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
           "pun_sensor": "Choose the sensor to be used for the PUN price",
-          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price"
-        }
+          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price",
+          "zona": "Geographical area for district prices",
+          "scan_hour": "Web download start hour (0-23)",
+          "actual_data_only": "Use only real data at month start",
+		  "fixed_pun_value": "Fixed PUN value"		  
+		  }
       }
     },
     "error": {
@@ -59,6 +64,14 @@
       "already_configured": "Integration already configured."
     }
   },
+  "selector": {
+    "pun_mode": {
+      "options": {
+        "calculated": "Calculated by GSE",
+        "fixed": "Fixed"
+      }
+    }
+  },  
   "options": {
     "step": {
       "step2o": {
@@ -99,7 +112,8 @@
           "accisa_tax": "Excise tax (€/kWh)",
           "iva": "VAT (%)",
           "discount": "Light Cashback discount (€/month)",
-          "tv_tax": "TV subscription fee for private use (€/month)"
+          "tv_tax": "TV subscription fee for private use (€/month)",
+		  "pun_mode": "PUN Mode"
         }
       },
       "step6o": {
@@ -108,7 +122,11 @@
         "data": {
           "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
           "pun_sensor": "Choose the sensor to be used for the PUN price",
-          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price"
+          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price",
+          "zona": "Geographical area for district prices",
+          "scan_hour": "Web download start hour (0-23)",
+          "actual_data_only": "Use only real data at month start",		  
+		  "fixed_pun_value": "Fixed PUN value"		
         }
       }
     }

@@ -3,6 +3,8 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 import homeassistant.helpers.config_validation as cv
+from awesomeversion.awesomeversion import AwesomeVersion
+from homeassistant.const import __version__ as HA_VERSION
 import voluptuous as vol
 from .const import (
     DOMAIN,
@@ -25,7 +27,35 @@ from .const import (
     CONF_MONTHY_ENTITY_SENSOR,
     CONF_PUN_SENSOR,
     CONF_PUN_MP_SENSOR,
+    CONF_ACTUAL_DATA_ONLY, 
+    CONF_SCAN_HOUR, 
+    CONF_ZONA,
+    CONF_PUN_MODE,
+    CONF_FIXED_PUN_VALUE,
+    PUN_MODE_CALCULATED,
+    PUN_MODE_FIXED
 )
+from .interfaces import DEFAULT_ZONA, Zona
+
+# Configurazione del selettore compatibile con HA 2023.4.0
+selector_config = selector.SelectSelectorConfig(
+    options=[
+        selector.SelectOptionDict(value=zona.name, label=zona.value) for zona in Zona
+    ],
+    mode=selector.SelectSelectorMode.DROPDOWN,
+    translation_key="zona",
+)
+pun_mode_selector_config = selector.SelectSelectorConfig(
+    options=[
+        selector.SelectOptionDict(value=PUN_MODE_CALCULATED, label="calculated"),
+        selector.SelectOptionDict(value=PUN_MODE_FIXED, label="fixed"),
+    ],
+    mode=selector.SelectSelectorMode.DROPDOWN,
+    translation_key="pun_mode",
+)
+if AwesomeVersion(HA_VERSION) >= AwesomeVersion("2023.9.0"):
+    selector_config["sort"] = True
+    
 
 class PUNOptionsFlow(config_entries.OptionsFlow):
     """Opzioni per prezzi PUN (= riconfigurazione successiva)"""
@@ -90,6 +120,7 @@ class PUNOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_IVA, default=self.config_entry.options.get(CONF_IVA, self.config_entry.data[CONF_IVA])) : vol.All(cv.positive_int, vol.Range(min=0, max=100)),
             vol.Required(CONF_DISCOUNT, default=self.config_entry.options.get(CONF_DISCOUNT, self.config_entry.data[CONF_DISCOUNT])) : cv.positive_float,
             vol.Required(CONF_TV_TAX, default=self.config_entry.options.get(CONF_TV_TAX, self.config_entry.data[CONF_TV_TAX])) : cv.positive_float,
+            vol.Required(CONF_PUN_MODE, default=self.data.get(CONF_PUN_MODE, self.config_entry.options.get(CONF_PUN_MODE, self.config_entry.data.get(CONF_PUN_MODE, PUN_MODE_CALCULATED)))): selector.SelectSelector(pun_mode_selector_config),
         }
         # Mostra la schermata di configurazione, con gli eventuali errori
         return self.async_show_form(
@@ -97,33 +128,50 @@ class PUNOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_step5o(self, user_input=None):
-        """Gestione prima configurazione da Home Assistant"""
-        self.data.update(user_input)
+        """Step 5o: campi condizionali in base alla modalità PUN (options)"""
+        self.data.update(user_input or {})
         errors = {}
-        data_schema = {
-            vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.config_entry.options.get(CONF_MONTHY_ENTITY_SENSOR, self.config_entry.data[CONF_MONTHY_ENTITY_SENSOR])) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor", "device_class" : "energy"}],
-				}
-			}),
-            vol.Required(CONF_PUN_SENSOR, default=self.config_entry.options.get(CONF_MONTHY_ENTITY_SENSOR, self.config_entry.data[CONF_PUN_SENSOR])) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor"}],
-				}
-			}),
-            vol.Required(CONF_PUN_MP_SENSOR, default=self.config_entry.options.get(CONF_MONTHY_ENTITY_SENSOR, self.config_entry.data[CONF_PUN_MP_SENSOR])) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor"}],
-				}
-			}),
-        }
-        # Mostra la schermata di configurazione, con gli eventuali errori
+
+        opt = self.config_entry.options
+        dat = self.config_entry.data
+
+        pun_mode = self.data.get(CONF_PUN_MODE, opt.get(CONF_PUN_MODE, dat.get(CONF_PUN_MODE, PUN_MODE_CALCULATED)))
+
+        if pun_mode == PUN_MODE_CALCULATED:
+            data_schema = {
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR, opt.get(CONF_MONTHY_ENTITY_SENSOR, dat[CONF_MONTHY_ENTITY_SENSOR]))):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_ZONA, default=self.data.get(CONF_ZONA, opt.get(CONF_ZONA, dat.get(CONF_ZONA, DEFAULT_ZONA.name)))):
+                    selector.SelectSelector(selector_config),
+                vol.Required(CONF_SCAN_HOUR, default=self.data.get(CONF_SCAN_HOUR, opt.get(CONF_SCAN_HOUR, dat.get(CONF_SCAN_HOUR, 1)))):
+                    vol.All(cv.positive_int, vol.Range(min=0, max=23)),
+                vol.Optional(CONF_ACTUAL_DATA_ONLY, default=self.data.get(CONF_ACTUAL_DATA_ONLY, opt.get(CONF_ACTUAL_DATA_ONLY, dat.get(CONF_ACTUAL_DATA_ONLY, False)))):
+                    cv.boolean,
+            }
+
+        elif pun_mode == PUN_MODE_FIXED:
+            data_schema = {
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR, opt.get(CONF_MONTHY_ENTITY_SENSOR, dat[CONF_MONTHY_ENTITY_SENSOR]))):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_FIXED_PUN_VALUE, default=self.data.get(CONF_FIXED_PUN_VALUE, opt.get(CONF_FIXED_PUN_VALUE, dat.get(CONF_FIXED_PUN_VALUE, 0.20)))):
+                    cv.positive_float,
+            }
+
         return self.async_show_form(
-            step_id="step6o", data_schema=vol.Schema(data_schema), errors=errors, 
+            step_id="step6o", data_schema=vol.Schema(data_schema), errors=errors,
         )
+
+
 
     async def async_step_step6o(self, user_input=None):
         """Gestione prima configurazione da Home Assistant"""
@@ -209,6 +257,8 @@ class PUNConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_IVA, default=10) : vol.All(cv.positive_int, vol.Range(min=0, max=100)),
             vol.Required(CONF_DISCOUNT, default=1) : cv.positive_float,
             vol.Required(CONF_TV_TAX, default=7) : cv.positive_float,
+            vol.Required(CONF_PUN_MODE, default=self.data.get(CONF_PUN_MODE, PUN_MODE_CALCULATED)):
+                selector.SelectSelector(pun_mode_selector_config),          
         }
         # Mostra la schermata di configurazione, con gli eventuali errori
         return self.async_show_form(
@@ -216,33 +266,47 @@ class PUNConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_step5(self, user_input=None):
-        """Gestione prima configurazione da Home Assistant"""
-        self.data.update(user_input)
+        """Step 5: campi condizionali in base alla modalità PUN"""
+        self.data.update(user_input or {})
         errors = {}
-        data_schema = {
-            vol.Required(CONF_MONTHY_ENTITY_SENSOR) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor", "device_class" : "energy"}],
-				}
-			}),
-            vol.Required(CONF_PUN_SENSOR) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor"}],
-				}
-			}),
-            vol.Required(CONF_PUN_MP_SENSOR) : selector.selector({
-				"entity": {
-					"multiple": "false",
-				    "filter": [{"domain" : "sensor"}],
-				}
-			}),
-        }
-        # Mostra la schermata di configurazione, con gli eventuali errori
+
+        pun_mode = self.data.get(CONF_PUN_MODE, PUN_MODE_CALCULATED)
+
+        if pun_mode == PUN_MODE_CALCULATED:
+            data_schema = {
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR)):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_ZONA, default=self.data.get(CONF_ZONA, DEFAULT_ZONA.name)):
+                    selector.SelectSelector(selector_config),
+                vol.Required(CONF_SCAN_HOUR, default=self.data.get(CONF_SCAN_HOUR, 1)):
+                    vol.All(cv.positive_int, vol.Range(min=0, max=23)),
+                vol.Optional(CONF_ACTUAL_DATA_ONLY, default=self.data.get(CONF_ACTUAL_DATA_ONLY, False)):
+                    cv.boolean,
+            }
+
+        elif pun_mode == PUN_MODE_FIXED:
+            data_schema = {
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR)):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_FIXED_PUN_VALUE, default=self.data.get(CONF_FIXED_PUN_VALUE, 0.20)):
+                    cv.positive_float,
+            }
+
         return self.async_show_form(
-            step_id="step6", data_schema=vol.Schema(data_schema), errors=errors, 
+            step_id="step6", data_schema=vol.Schema(data_schema), errors=errors,
         )
+
+
 
     async def async_step_step6(self, user_input=None):
         """Gestione prima configurazione da Home Assistant"""

@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/Sanji78/bolletta/issues",
   "loggers": ["custom_components.bolletta"],
   "requirements": ["holidays","bs4"],
-  "version": "1.0.0"
+  "version": "1.2.0"
 }
