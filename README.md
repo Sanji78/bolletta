@@ -35,10 +35,6 @@ The integration supports a **PUN mode** option (selected during config flow or f
 - **Calculated (default)** — PUN is retrieved/averaged by the integration from hourly GSE zonal prices and used to compute the bill (this is the original behavior).
 - **Fixed** — PUN is taken from a fixed numeric value entered by the user (option `fixed_pun_value`, expressed in `€/kWh`). When set, the integration uses that fixed value for all PUN-dependent calculations.
 
-This change makes it easy to:
-- force a stable price for testing or billing simulations, and
-- fall back to a known fixed price if GSE data is unavailable.
-
 ### UI / Config flow
 During configuration (or in the Options flow) you will find a new dropdown labeled **"Modalità di utilizzo del PUN"** (PUN Mode) with choices:
 - `Calcolato da GSE` (calculated)
