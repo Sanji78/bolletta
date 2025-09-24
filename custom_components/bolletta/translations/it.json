@@ -1,135 +1,105 @@
 {
-  "config": {
-    "step": {
-      "step2": {
-        "title": "Calcolo Bolletta (1/5)",
-		"description": "Spesa per l'energia",
-        "data": {
-		  "fix_quota_aggr_measure" : "Quota fissa - Aggregazione misure (€/mese)",
-		  "monthly_fee" : "Contributo mensile (€/mese)",
-		  "tariff_type" : "Tipologia di tariffa",
-		  "nw_loss_percentage" : "Perdite di rete in percentuale (%)",
-		  "other_fee" : "Altri oneri - Dispacciamento (€/kWh)"
-		}
+   "config":{
+      "step":{
+         "step2":{
+            "title":"Calcolo Bolletta (1/4)",
+            "description":"Spesa per la vendita di energia elettrica",
+            "data":{
+               "fix_quota_aggr_measure":"Quota fissa - Aggregazione misure (€/mese)",
+               "monthly_fee":"Contributo mensile (€/mese)",
+               "tariff_type":"Tipologia di tariffa",
+               "other_fee":"Altri oneri - Dispacciamento (€/kWh)",
+               "pun_mode":"Modalità di utilizzo del PUN"
+            }
+         },
+         "step3":{
+            "title":"Calcolo Bolletta (2/4)",
+            "description":"Sensore energia e calcolo PUN",
+            "data":{
+               "monthly_entity_sensor":"Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
+               "zona":"Zona geografica per prezzi zonali",
+               "scan_hour":"Ora inizio download dati (0-23)",
+               "fixed_pun_value":"Valore del PUN fisso",
+			   "house_type":"Tipologia abitazione"
+            }
+         },
+         "step4":{
+            "title":"Calcolo Bolletta (3/4)",
+            "description":"Spesa per la tariffa per l’uso della rete elettrica",
+            "data":{
+               "power_in_use":"Potenza contratto (kW)"
+            }
+         },
+         "step5":{
+            "title":"Calcolo Bolletta (4/4)",
+            "description":"Sconti e Canone TV",
+            "data":{
+               "discount":"Sconto Cashback Luce (€/mese)",
+               "tv_tax":"Canone di abbonamento alla televisione per uso privato (€/mese)"
+            }
+         }
       },
-      "step3": {
-        "title": "Calcolo Bolletta (2/5)",
-		"description": "Spesa per il trasporto dell'energia elettrica e la gestione del contatore",
-        "data": {
-			"fix_quota_transport" : "Quota fissa (€/mese)",
-			"quota_power" : "Quota potenza (€/kW/mese)",
-			"power_in_use" : "Potenza contratto (kW)",
-			"energy_sc1" : "Quota energia Scaglione 1 (€/kWh)"
-		}
+      "error":{
+         "unknown":"Errore sconosciuto"
       },
-      "step4": {
-        "title": "Calcolo Bolletta (3/5)",
-		"description": "Spesa per gli oneri di sistema",
-        "data": {
-			"asos_sc1" : "Quota variabile Asos Scaglione 1 (€/kWh)",
-			"asos_sc2" : "Quota variabile Asos Scaglione 2 (€/kWh)",
-			"arim_sc1" : "Quota variabile Arim Scaglione 1 (€/kWh)",
-			"arim_sc2" : "Quota variabile Arim Scaglione 2 (€/kWh)"
-		}
-      },
-      "step5": {
-        "title": "Calcolo Bolletta (4/5)",
-		"description": "Imposte, IVA, Sconti e Canone",
-        "data": {
-			"accisa_tax" : "Imposta erariale di consumo - Accisa (€/kWh)",
-			"iva" : "IVA (%)",
-			"discount" : "Sconto Cashback Luce (€/mese)",
-			"tv_tax" : "Canone di abbonamento alla televisione per uso privato (€/mese)",
-			"pun_mode": "Modalità di utilizzo del PUN"
-		}
-      },
-      "step6": {
-        "title": "Calcolo Bolletta (5/5)",
-		"description": "Sensore energia e calcolo PUN",
-        "data": {
-			"monthly_entity_sensor": "Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
-			"pun_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN",
-			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso",
-            "zona": "Zona geografica per prezzi zonali",
-            "scan_hour": "Ora inizio download dati (0-23)",
-            "actual_data_only": "Usa solo dati reali ad inizio mese",
-			"fixed_pun_value": "Valore del PUN fisso"
-		}
+      "abort":{
+         "already_configured":"Integrazione già configurata."
       }
-    },
-    "error": {
-      "unknown": "Errore sconosciuto"
-    },
-    "abort": {
-      "already_configured": "Integrazione già configurata."
-    }
-  },
-  "selector": {
-    "pun_mode": {
-      "options": {
-        "calculated": "Calcolato da GSE",
-        "fixed": "Fisso"
+   },
+   "selector":{
+      "pun_mode":{
+         "options":{
+            "calculated":"Calcolato da GSE",
+            "fixed":"Fisso"
+         }
+      },
+	  "house_type":{
+         "options":{
+            "residential":"Abitazioni di residenza anagrafica",
+            "not_residential":"Abitazioni diverse dalla residenza anagrafica"
+         }
       }
-    }
-  },
-  "options": {
-    "step": {
-      "step2o": {
-        "title": "Calcolo Bolletta (1/5)",
-		"description": "Spesa per l'energia",
-        "data": {
-		  "fix_quota_aggr_measure" : "Quota fissa - Aggregazione misure (€/mese)",
-		  "monthly_fee" : "Contributo mensile (€/mese)",
-		  "tariff_type" : "Tipologia di tariffa",
-		  "nw_loss_percentage" : "Perdite di rete in percentuale (%)",
-		  "other_fee" : "Altri oneri - Dispacciamento (€/kWh)"
-		}
-      },
-      "step3o": {
-        "title": "Calcolo Bolletta (2/5)",
-		"description": "Spesa per il trasporto dell'energia elettrica e la gestione del contatore",
-        "data": {
-			"fix_quota_transport" : "Quota fissa (€/mese)",
-			"quota_power" : "Quota potenza (€/kW/mese)",
-			"power_in_use" : "Potenza contratto (kW)",
-			"energy_sc1" : "Quota energia Scaglione 1 (€/kWh)"
-		}
-      },
-      "step4o": {
-        "title": "Calcolo Bolletta (3/5)",
-		"description": "Spesa per gli oneri di sistema",
-        "data": {
-			"asos_sc1" : "Quota variabile Asos Scaglione 1 (€/kWh)",
-			"asos_sc2" : "Quota variabile Asos Scaglione 2 (€/kWh)",
-			"arim_sc1" : "Quota variabile Arim Scaglione 1 (€/kWh)",
-			"arim_sc2" : "Quota variabile Arim Scaglione 2 (€/kWh)"
-		}
-      },
-      "step5o": {
-        "title": "Calcolo Bolletta (4/5)",
-		"description": "Imposte, IVA, Sconti e Canone",
-        "data": {
-			"accisa_tax" : "Imposta erariale di consumo - Accisa (€/kWh)",
-			"iva" : "IVA (%)",
-			"discount" : "Sconto Cashback Luce (€/mese)",
-			"tv_tax" : "Canone di abbonamento alla televisione per uso privato (€/mese)",
-			"pun_mode": "Modalità di utilizzo del PUN"
-		}
-      },
-      "step6o": {
-        "title": "Calcolo Bolletta (5/5)",
-		"description": "Sensore energia e calcolo PUN",
-        "data": {
-			"monthly_entity_sensor": "Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
-			"pun_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN",
-			"pun_mp_sensor": "Scegli il sensore che verrà usato per il prezzo del PUN del mese scorso",
-            "zona": "Zona geografica per prezzi zonali",
-            "scan_hour": "Ora inizio download dati (0-23)",
-            "actual_data_only": "Usa solo dati reali ad inizio mese",
-			"fixed_pun_value": "Valore del PUN fisso"
-		}
-      }
-      }
-    }
-  }
+   },
+   "options":{
+      "step":{
+         "step2o":{
+            "title":"Calcolo Bolletta (1/4)",
+            "description":"Spesa per la vendita di energia elettrica",
+            "data":{
+               "fix_quota_aggr_measure":"Quota fissa - Aggregazione misure (€/mese)",
+               "monthly_fee":"Contributo mensile (€/mese)",
+               "tariff_type":"Tipologia di tariffa",
+               "other_fee":"Altri oneri - Dispacciamento (€/kWh)",
+               "pun_mode":"Modalità di utilizzo del PUN"
+            }
+         },
+         "step3o":{
+            "title":"Calcolo Bolletta (2/4)",
+            "description":"Sensore energia e calcolo PUN",
+            "data":{
+               "monthly_entity_sensor":"Scegli il sensore che verrà usato per il calcolo dei consumi mensili",
+               "zona":"Zona geografica per prezzi zonali",
+               "scan_hour":"Ora inizio download dati (0-23)",
+               "fixed_pun_value":"Valore del PUN fisso",
+			   "house_type":"Tipologia abitazione"
+            }
+         },
+         "step4o":{
+            "title":"Calcolo Bolletta (3/4)",
+            "description":"Spesa per la tariffa per l’uso della rete elettrica",
+            "data":{
+               "power_in_use":"Potenza contratto (kW)"
 
+            }
+         },
+         "step5o":{
+            "title":"Calcolo Bolletta (4/4)",
+            "description":"Sconti e Canone TV",
+            "data":{
+               "discount":"Sconto Cashback Luce (€/mese)",
+               "tv_tax":"Canone di abbonamento alla televisione per uso privato (€/mese)"
+            }
+         }
+      }
+   }
+}

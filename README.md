@@ -2,7 +2,9 @@
 
 Custom Home Assistant integration that estimates your **electricity bill** based on:
 - a monthly energy consumption sensor,
-- PUN price calculation (either calculated from GSE hourly prices or a fixed value),
+- PUN price calculation (either calculated from GME hourly prices or a fixed value),
+- ARERA tariff parameters (automatically retrieved),
+- Portale delle Offerte tax parameters (automatically retrieved),
 - and a set of configurable parameters (fees, fixed charges, taxes, discounts, TV license, etc.).
 
 **Repository**: `https://github.com/Sanji78/bolletta`  
@@ -13,39 +15,47 @@ Custom Home Assistant integration that estimates your **electricity bill** based
 ## ✨ Main features
 
 - Exposes several **sensor entities** representing bill items (energy fixed fee, energy consumption cost, transport fees, system charges, excise, VAT, total).
-- Calculations rely on configurable values (fixed fees, network loss percentage, variable charges, VAT, cashback discount, TV license).
-- **PUN (zonal average price) can now be used in two ways**: either *calculated automatically* by the integration (from GSE hourly prices) **or** provided as a *fixed PUN value* via the UI. This gives flexibility for testing, offline scenarios, or stable-rate calculations.
+- **Automatic parameter retrieval** from ARERA (monthly tariff parameters) and Portale delle Offerte (tax rates and system charges).
+- **Flexible billing periods** with configurable monthly/bimonthly billing and invoice shift options.
+- **PUN integration** with two modes: calculated from GME market data or fixed value.
+- **Precise calculations** that match actual utility bills to the cent.
+- **Grouped devices** for better organization in Home Assistant (PUN, ARERA, Bolletta, PortaleOfferte).
 - Built with a coordinator (`PUNDataUpdateCoordinator`) and sensors that compute values on update/poll.
 - Compatible with Home Assistant via a **Config Flow** (no YAML configuration required).
 
 ---
 
-## 📦 Requirements
+## 🆕 What's New in Version 1.3.0
 
-- Home Assistant (modern versions; integration tested with 2024 era compatibility).
-- Python libraries listed in `manifest.json`: `holidays`, `bs4` (BeautifulSoup4).
+### Major Improvements
+- **Automatic ARERA parameter retrieval**: No more manual entry of energy quotas, transport fees, ASOS/ARIM values
+- **Automatic Portale delle Offerte integration**: Automatic retrieval of tax rates (IVA, accisa), network loss percentages
+- **Enhanced billing flexibility**: Configurable monthly/bimonthly billing with invoice shift options
+- **Improved sensor organization**: Sensors grouped into logical devices for better HA interface management
+- **Precision calculations**: Fixed rounding issues - now matches actual utility bills exactly
+- **Tested and validated**: Calculations verified against real utility bills with cent-level accuracy
 
----
+### New Configuration Options
+- **House type selection**: Residential vs Non-residential properties
+- **Billing period switches**: Monthly billing and invoice shift toggles
+- **Power contract level**: Differentiated parameters based on contract power (≤3kW vs >3kW)
 
-## ⚙️ What changed — PUN mode support
+### Automated Data Sources
+- **ARERA Excel files**: Quarterly updated tariff parameters automatically downloaded and parsed
+- **Portale delle Offerte CSV**: Daily updated tax parameters and system charges
+- **GME market data**: Hourly PUN prices for accurate calculations
 
-### New behavior
+### Automatic PUN Calculation
 The integration supports a **PUN mode** option (selected during config flow or from the integration Options):
-
 - **Calculated (default)** — PUN is retrieved/averaged by the integration from hourly GSE zonal prices and used to compute the bill (this is the original behavior).
 - **Fixed** — PUN is taken from a fixed numeric value entered by the user (option `fixed_pun_value`, expressed in `€/kWh`). When set, the integration uses that fixed value for all PUN-dependent calculations.
 
-### UI / Config flow
-During configuration (or in the Options flow) you will find a new dropdown labeled **"Modalità di utilizzo del PUN"** (PUN Mode) with choices:
-- `Calcolato da GSE` (calculated)
-- `Fisso` (fixed)
+---
 
-If you choose **Fisso**, an additional numeric field appears: **Valore del PUN fisso** (fixed_pun_value in `€/kWh`).
+## 📦 Requirements
 
-If you choose **Calcolato da GSE**, no fixed value is required and the integration computes PUN sensors internally:
-- `sensor.pun_mono_orario`, `sensor.pun_fascia_*`, etc.
-
-Both modes are available at setup time and later through **Settings → Devices & Services → Your integration → Options**.
+- Home Assistant (modern versions; integration tested with 2025 era compatibility).
+- Python libraries: `holidays`, `bs4` (BeautifulSoup4), `openpyxl`
 
 ---
 
@@ -70,162 +80,122 @@ Both modes are available at setup time and later through **Settings → Devices 
 
 1. In Home Assistant: **Settings → Devices & Services → Add Integration**.
 2. Search for **Bolletta** and follow the configuration flow.
-   - The config flow asks for several numeric defaults (fees, charges, VAT, etc.) and the `monthly_entity_sensor`.
-   - Choose **PUN Mode**: *Calculated* (default) or *Fixed*.
-   - If *Fixed* is chosen, enter **Valore del PUN fisso** (€/kWh).
-3. You can update all values later via the integration **Options**.
 
-### Main parameters (options)
-- `fix_quota_aggr_measure` — Fixed quota: aggregation of measures (€/month)
-- `monthly_fee` — Monthly contribution (€/month)
-- `nw_loss_percentage` — Network loss percentage (%) — integer 0–100
-- `other_fee` — Other fees - Dispatching (€/kWh)
-- `fix_quota_transport` — Transport fixed quota (€/month)
-- `quota_power` — Power quota (€/kW/month)
-- `power_in_use` — Contracted power (kW)
-- `energy_sc1` — Energy quota Tier 1 (€/kWh)
-- `asos_sc1`, `asos_sc2` — ASOS variable quotas per tier (€/kWh)
-- `arim_sc1`, `arim_sc2` — ARIM variable quotas per tier (€/kWh)
-- `accisa_tax` — Excise duty (€/kWh)
-- `iva` — VAT (%) (integer 0–100)
-- `discount` — Cashback discount (€/month)
-- `tv_tax` — TV license (€/month)
-- `monthly_entity_sensor` — **Monthly energy sensor** (must be a `sensor` with device_class `energy` and provide `state` and attribute `last_period`). This is still required: the integration uses this sensor as the primary source of monthly consumption.
+### Configuration Steps
 
----
+#### Step 1: Basic Energy Costs
+- **Fixed quota - Aggregation measures** (€/month)
+- **Monthly fee** (€/month)
+- **PUN Mode**: Choose between calculated (from GME) or fixed value
+- **Other fees** - Dispatching (€/kWh)
 
-## 🔎 Exposed entities (sensors)
+#### Step 2: House Type and Consumption Sensor
+- **House type**: Residential or Non-residential
+- **Monthly consumption sensor**: Select your energy consumption sensor
+- **Zone** (for PUN calculations) if using calculated mode
+- **Scan hour** for data updates
 
-The integration creates the following sensors (entity_id):
+#### Step 3: Contract Details
+- **Power in use** (kW) - Your contracted power level
 
-- `sensor.bill_energy_fix_quote`  
-  *Energy expense — Fixed fee*  
-  Calculation: `fix_quota_aggr_measure * 2 + monthly_fee * 2` (rounded to 2 decimals).
+#### Step 4: Taxes and Discounts
+- **Discount** (€/month)
+- **TV Tax** (€/month)
 
-- `sensor.bill_energy_energy_quote`  
-  *Energy expense — Energy quota*  
-  Calculation: `monthly_consumption * ((1 + nw_loss_percentage/100) * pun + other_fee)`  
-  If the current month is even (assumption of bi-monthly billing), the previous period is added using the `last_period` attribute from the consumption sensor.
-
-- `sensor.bill_transport_fix_quote`  
-  *Transport and meter handling — Fixed fee*  
-  Calculation: `fix_quota_transport * 2`.
-
-- `sensor.bill_transport_power_quote`  
-  *Transport — Power quota*  
-  Calculation: `quota_power * power_in_use * 2`.
-
-- `sensor.bill_transport_energy_quote`  
-  *Transport — Energy quota*  
-  Calculation: `monthly_consumption * energy_sc1` (+ previous period if month is even).
-
-- `sensor.bill_asos_arim_quote`  
-  *System charges (ASOS / ARIM)*  
-  Calculation: combines `asos_sc1` (and optionally `asos_sc2`) and `arim_sc1` (and `arim_sc2`) applied on monthly consumption and, if month is even, on the previous period as well.
-
-- `sensor.bill_accisa_tax`  
-  *Excise duty (Accisa)*  
-  Calculation: `monthly_consumption * accisa_tax` (+ previous period if month is even).
-
-- `sensor.bill_iva`  
-  *Total VAT*  
-  Calculation: VAT applied to the taxable total.
-
-- `sensor.bill_total`  
-  *Total bill*  
-  Sum of all items above, VAT, subtract discounts (discount) and add TV license except for November and December (logic present in the code).
-
-- `sensor.bill_kwh_price`  
-  *Price per kWh (effective price used in bill calculations)*  
-  Calculation: `((1 + nw_loss_percentage/100) * pun_mono_orario + other_fee) + energy_sc1 + asos_sc1 + arim_sc1` (sum of per-kWh components; displayed as €/kWh and used to compute energy line items).
-
-- `sensor.pun_mono_orario`  
-  *PUN mono-hourly (zonal average price — current month)*  
-  Calculation: average of the hourly PUN prices for the current month expressed as `€ / kWh` (suggested display precision 6 decimals).
-
-- `sensor.pun_mono_orario_mp`  
-  *PUN mono-hourly — previous month*  
-  Calculation: average of the hourly PUN prices for the previous month expressed as `€ / kWh` (used for bi-monthly / previous-period comparisons).
-
-- `sensor.pun_fascia_f1`  
-  *PUN — average price for tariff band F1 (current month)*  
-  Calculation: average of hourly PUN values that fall into F1 for the current month, expressed as `€ / kWh`.
-
-- `sensor.pun_fascia_f2`  
-  *PUN — average price for tariff band F2 (current month)*  
-  Calculation: average of hourly PUN values that fall into F2 for the current month, expressed as `€ / kWh`.
-
-- `sensor.pun_fascia_f3`  
-  *PUN — average price for tariff band F3 (current month)*  
-  Calculation: average of hourly PUN values that fall into F3 for the current month, expressed as `€ / kWh`.
-
-- `sensor.pun_fascia_f1_mp`  
-  *PUN — average price for tariff band F1 (previous month)*  
-  Calculation: same as `pun_fascia_f1` but computed over the previous month (`€ / kWh`).
-
-- `sensor.pun_fascia_f2_mp`  
-  *PUN — average price for tariff band F2 (previous month)*  
-  Calculation: same as `pun_fascia_f2` but computed over the previous month (`€ / kWh`).
-
-- `sensor.pun_fascia_f3_mp`  
-  *PUN — average price for tariff band F3 (previous month)*  
-  Calculation: same as `pun_fascia_f3` but computed over the previous month (`€ / kWh`).
-
-- `sensor.pun_fascia_f23`  
-  *PUN — combined F2+F3 average (current month)*  
-  Calculation: combined average of F2 and F3 hourly values for the current month (used by some tariff calculations when F2 and F3 are handled together).
-
-- `sensor.pun_fascia_f23_mp`  
-  *PUN — combined F2+F3 average (previous month)*  
-  Calculation: combined average of F2 and F3 hourly values for the previous month.
-
-- `sensor.pun_fascia_corrente`  
-  *Current PUN time band (enum: F1 / F2 / F3)*  
-  Calculation: returns the currently active time band (F1/F2/F3). Attributes include `fascia_successiva`, `inizio_fascia_successiva`, and `termine_fascia_successiva`.
-
-- `sensor.pun_prezzo_fascia_corrente`  
-  *Price for the current time band*  
-  Calculation: the average PUN price for the currently active band (F1/F2/F3) for the relevant period (`€ / kWh`).
-
-- `sensor.pun_prezzo_zonale`  
-  *Zonal hourly price (current hour — zone-aware)*  
-  Calculation: current zonal price for the configured zone (`€ / kWh`). Attributes include hourly zonal prices for today and tomorrow (`oggi_h_00` … `oggi_h_23`, `domani_h_00` … `domani_h_23`) and a `zona` attribute when available.
-
-- `sensor.pun_orario`  
-  *Hourly PUN price for the current hour (with hourly history in attributes)*  
-  Calculation: current PUN for the active hour (`€ / kWh`). Attributes expose the full hourly series for today and tomorrow (`oggi_h_00` … `oggi_h_23`, `domani_h_00` … `domani_h_23`) and a cached `pun_orari` dictionary restored after restart.
-
-
-### Technical notes about entities
-- Unit: `€` (monetary).  
-- `state` is a formatted number; integration attempts to set `suggested_display_precision` when supported by HA.
-- Sensors use `should_poll = True` — they are recalculated when Home Assistant polls them or on manual update.
+### Important Notes
+- **ARERA and Portale delle Offerte parameters are now automatically retrieved** - no manual entry needed
+- The integration will automatically download and update tariff parameters monthly
+- **Monthly consumption sensor must provide `last_period` attribute** for bimonthly billing calculations
 
 ---
 
-## 🧾 Requirements for external sensors
+## 🔎 Exposed Entities
 
-- `monthly_entity_sensor` must be a consumption sensor that provides:
-  - `.state` → monthly consumption (numeric).
-  - `.attributes['last_period']` → previous period consumption (used for bi-monthly calculation).
-- **PUN sensors are no longer required** because the integration calculates PUN internally. 
+### Bolletta Device (Bill Calculation)
+- `sensor.bill_energy_fix_quote` - Energy fixed quota
+- `sensor.bill_energy_energy_quote` - Energy variable quota
+- `sensor.bill_transport_fix_quote` - Transport fixed quota
+- `sensor.bill_transport_power_quote` - Transport power quota
+- `sensor.bill_transport_energy_quote` - Transport energy quota
+- `sensor.bill_asos_arim_quote` - System charges (ASOS/ARIM)
+- `sensor.bill_accisa_tax` - Excise tax
+- `sensor.bill_iva` - VAT total
+- `sensor.bill_total` - Total bill amount
+- `sensor.bill_kwh_price` - Effective price per kWh
 
-If these sensors are missing or don't provide the expected data, calculations may fail or generate errors in the log.
+### PUN Device (National Single Price)
+- `sensor.pun_mono_orario` - Current month hourly average
+- `sensor.pun_mono_orario_mp` - Previous month hourly average
+- `sensor.pun_fascia_f1` / `sensor.pun_fascia_f2` / `sensor.pun_fascia_f3` - Current month by tariff band
+- `sensor.pun_fascia_f1_mp` / etc. - Previous month by tariff band
+- `sensor.pun_fascia_corrente` - Current active tariff band
+- `sensor.pun_prezzo_fascia_corrente` - Price for current tariff band
+- `sensor.pun_prezzo_zonale` - Zonal price (current hour)
+- `sensor.pun_orario` - Hourly PUN price
+
+### ARERA Device (Regulatory Parameters)
+- `sensor.arera_energy_sc1` - Energy quota Scaglione 1
+- `sensor.arera_fix_quota_transport` - Transport fixed quota
+- `sensor.arera_quota_power` - Power quota
+- `sensor.arera_asos_sc1` - ASOS variable quota
+- `sensor.arera_arim_sc1` - ARIM variable quota
+- (Plus previous month variants for all parameters)
+
+### PortaleOfferte Device (Tax Parameters)
+- `sensor.portaleofferte_accisa_tax` - Excise tax rate
+- `sensor.portaleofferte_iva` - VAT rate
+- `sensor.portaleofferte_nw_loss_percentage` - Network loss percentage
+- `sensor.portaleofferte_port_asos_sc1` - Portale ASOS rate
+- `sensor.portaleofferte_port_arim_sc1` - Portale ARIM rate
+- (Plus previous month variants for all parameters)
+
+### Configuration Switches
+- `switch.invoice_shift` - Toggle for shifting invoice cutoff
+- `switch.invoice_monthly` - Toggle for monthly billing (vs bimonthly)
 
 ---
 
-## 🕘 Updates and calculation behavior
+## 💡 Billing Period Configuration
 
-- `PUNDataUpdateCoordinator` holds configuration parameters and **does** force automatic web updates (every 10 seconds). Individual sensors perform calculations in `manage_update()` and are configured for polling.
+The integration now supports flexible billing periods:
+
+### Monthly Billing
+- Enable the `invoice_monthly` switch
+- Calculations use only current month consumption
+
+### Bimonthly Billing (Default)
+- Disable the `invoice_monthly` switch
+- Calculations include current and previous month consumption
+- Use `invoice_shift` to adjust which months are grouped together
+
+### Invoice Shift
+- The `invoice_shift` switch controls month pairing for bimonthly bills
+- Shifted: Feb/Mar, Apr/May, etc.
+- Non-shifted: Jan/Feb, Mar/Apr, etc.
+
+---
+
+## 🎯 Precision and Accuracy
+
+**This integration has been tested against actual utility bills and matches calculations to the cent.** The improvements include:
+
+- Proper rounding at each calculation step
+- Accurate handling of bimonthly billing periods
+- Correct application of tax rates and discounts
+- Precise energy quota calculations based on real consumption data
 
 ---
 
 ## 🐞 Troubleshooting
 
 - If sensors show `unknown` or errors:
-  - Check that `monthly_entity_sensor` exists and has numeric value and the `last_period` attribute.
-  - Check logs (**Settings → System → Logs**) for entries under `custom_components.bolletta`.
+- Check that `monthly_entity_sensor` exists and has numeric value and the `last_period` attribute.
+- Check logs (**Settings → System → Logs**) for entries under `custom_components.bolletta`.
 - If `last_period` is not present on the consumption sensor, the bi-monthly logic will not work—ensure the source sensor provides `last_period`.
+- If ARERA or Portale delle Offerte data fails to download:
+- The integration will retry automatically with exponential backoff
+- Check your internet connection and firewall settings
+- Parameters will use cached values until new data is available
 
 ---
 

@@ -18,7 +18,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 import homeassistant.util.dt as dt_util
 
 from .const import (
-    CONF_ACTUAL_DATA_ONLY,
     CONF_SCAN_HOUR,
     CONF_SCAN_MINUTE,
     CONF_ZONA,
@@ -32,14 +31,7 @@ from .const import (
     CONF_MONTHLY_FEE,
     CONF_NW_LOSS_PERCENTAGE,
     CONF_OTHER_FEE,
-    CONF_FIX_QUOTA_TRANSPORT,
-    CONF_QUOTA_POWER,
     CONF_POWER_IN_USE,
-    CONF_ENERGY_SC1,
-    CONF_ASOS_SC1,
-    CONF_ASOS_SC2,
-    CONF_ARIM_SC1,
-    CONF_ARIM_SC2,
     CONF_ACCISA_TAX,
     CONF_IVA,
     CONF_DISCOUNT,
@@ -47,10 +39,26 @@ from .const import (
     CONF_MONTHY_ENTITY_SENSOR,
     CONF_PUN_MODE,
     PUN_MODE_CALCULATED,
-    CONF_FIXED_PUN_VALUE
+    CONF_FIXED_PUN_VALUE,
+    EVENT_UPDATE_ARERA,
+    CONF_HOUSE_TYPE,
+    RESIDENTIAL,
+    NOT_RESIDENTIAL,
+    CONF_ENERGY_SC1,
+    CONF_ENERGY_SC1_MP,
+    CONF_FIX_QUOTA_TRANSPORT,
+    CONF_FIX_QUOTA_TRANSPORT_MP,
+    CONF_QUOTA_POWER,
+    CONF_QUOTA_POWER_MP,
+    CONF_ASOS_SC1,
+    CONF_ASOS_SC1_MP,
+    CONF_ARIM_SC1,
+    CONF_ARIM_SC1_MP,
 )
 from .interfaces import DEFAULT_ZONA, Fascia, PunData, PunValues, PunDataMP, PunValuesMP, Zona
 from .utils import extract_xml, extract_xml2, get_fascia, get_hour_datetime, get_next_date
+from .arera_client import AreraClient
+from .portale_offerte_client import PortaleOfferteClient
 
 # Ottiene il logger
 _LOGGER = logging.getLogger(__name__)
@@ -74,34 +82,66 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             # Nessun update_interval (aggiornamento automatico disattivato)
         )
 
+        #
+        # Tariff parameters (initialize to 0.0 to avoid AttributeError later)
+        #
+        # ARERA current (mese-1)
+        self.energy_sc1: float = 0.0
+        self.fix_quota_transport: float = 0.0
+        self.quota_power: float = 0.0
+        self.asos_sc1: float = 0.0
+        self.arim_sc1: float = 0.0
+
+        # ARERA previous (mese-2) / MP variants
+        self.energy_sc1_mp: float = 0.0
+        self.fix_quota_transport_mp: float = 0.0
+        self.quota_power_mp: float = 0.0
+        self.asos_sc1_mp: float = 0.0
+        self.arim_sc1_mp: float = 0.0
+
+        # PortaleOfferte (daily/monthly) current and previous
+        self.port_asos_sc1: float = 0.0
+        self.port_arim_sc1: float = 0.0
+        self.port_asos_sc1_mp: float = 0.0
+        self.port_arim_sc1_mp: float = 0.0
+
+        # Taxes / misc
+        self.accisa_tax: float = 0.0
+        self.iva: float = 0.0
+        self.nw_loss_percentage: float = 0.0
+        
+        # Taxes / misc (previous-month variants)
+        self.accisa_tax_mp: float = 0.0
+        self.iva_mp: float = 0.0
+        self.nw_loss_percentage_mp: float = 0.0
+
+        self.fix_quota_aggr_measure = 0
+        self.monthly_fee = 0
+        self.other_fee = 0
+        self.monthly_entity_sensor = 0
+        self.power_in_use = 0
+        self.discount = 0
+        self.tv_tax = 0
+        self.pun_mode = 0
+        self.house_type = 0
+        self.fixed_pun_value = 0
+
         # Salva la sessione client e la configurazione
         self.session = async_get_clientsession(hass)
-
+        
         # Inizializza i valori di configurazione (dalle opzioni o dalla configurazione iniziale)
         self.fix_quota_aggr_measure = config.options.get(CONF_FIX_QUOTA_AGGR_MEASURE, config.data[CONF_FIX_QUOTA_AGGR_MEASURE])
         self.monthly_fee = config.options.get(CONF_MONTHLY_FEE, config.data[CONF_MONTHLY_FEE])
         
-        self.nw_loss_percentage = config.options.get(CONF_NW_LOSS_PERCENTAGE, config.data[CONF_NW_LOSS_PERCENTAGE])
         self.other_fee = config.options.get(CONF_OTHER_FEE, config.data[CONF_OTHER_FEE])
         self.monthly_entity_sensor = config.options.get(CONF_MONTHY_ENTITY_SENSOR, config.data[CONF_MONTHY_ENTITY_SENSOR])
-        # self.pun_sensor = config.options.get(CONF_PUN_SENSOR, config.data[CONF_PUN_SENSOR]) 
-        # self.pun_mp_sensor = config.options.get(CONF_PUN_MP_SENSOR, config.data[CONF_PUN_MP_SENSOR])
 
-        self.fix_quota_transport = config.options.get(CONF_FIX_QUOTA_TRANSPORT, config.data[CONF_FIX_QUOTA_TRANSPORT])
-        self.quota_power = config.options.get(CONF_QUOTA_POWER, config.data[CONF_QUOTA_POWER])
         self.power_in_use = config.options.get(CONF_POWER_IN_USE, config.data[CONF_POWER_IN_USE])
-        self.energy_sc1 = config.options.get(CONF_ENERGY_SC1, config.data[CONF_ENERGY_SC1])
 
-        self.asos_sc1 = config.options.get(CONF_ASOS_SC1, config.data[CONF_ASOS_SC1])
-        self.asos_sc2 = config.options.get(CONF_ASOS_SC2, config.data[CONF_ASOS_SC2])
-        self.arim_sc1 = config.options.get(CONF_ARIM_SC1, config.data[CONF_ARIM_SC1])
-        self.arim_sc2 = config.options.get(CONF_ARIM_SC2, config.data[CONF_ARIM_SC2])
-        self.accisa_tax = config.options.get(CONF_ACCISA_TAX, config.data[CONF_ACCISA_TAX])
-
-        self.iva = config.options.get(CONF_IVA, config.data[CONF_IVA])
         self.discount = config.options.get(CONF_DISCOUNT, config.data[CONF_DISCOUNT])
         self.tv_tax = config.options.get(CONF_TV_TAX, config.data[CONF_TV_TAX])
         self.pun_mode = config.options.get(CONF_PUN_MODE, config.data.get(CONF_PUN_MODE, PUN_MODE_CALCULATED))
+        self.house_type = config.options.get(CONF_HOUSE_TYPE, config.data.get(CONF_HOUSE_TYPE, RESIDENTIAL))
         self.fixed_pun_value = config.options.get(CONF_FIXED_PUN_VALUE, config.data.get(CONF_FIXED_PUN_VALUE, 0.20))
 
 
@@ -110,13 +150,23 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.schedule_token = None
         
         # Inizializza i valori di configurazione (dalle opzioni o dalla configurazione iniziale)
-        self.actual_data_only = config.options.get(
-            CONF_ACTUAL_DATA_ONLY, config.data.get(CONF_ACTUAL_DATA_ONLY, False)
-        )
         self.scan_hour = config.options.get(
             CONF_SCAN_HOUR, config.data.get(CONF_SCAN_HOUR, 1)
         )
 
+        # Initialize ARERA client
+        self.arera_client = AreraClient(hass)
+        # variables to handle scheduling/retries for ARERA client
+        self.web_retries_arera = 0
+        self.arera_schedule_token = None
+
+        # Initialize PortaleOfferte client
+        self.portale_client = PortaleOfferteClient(hass)
+        # variables to handle scheduling/retries for portale_offerte
+        self.web_retries_portale = 0
+        self.portale_schedule_token = None
+
+        
         # Inizializza i dati PUN e la zona geografica
         self.pun_data: PunData = PunData()
         # Inizializza i dati PUN e la zona geografica
@@ -189,6 +239,8 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Inizializza i valori di default
         self.web_retries = WEB_RETRIES_MINUTES
+        self.web_retries_arera = WEB_RETRIES_MINUTES
+        self.web_retries_portale = WEB_RETRIES_MINUTES
         self.schedule_token = None
         self.pun_values: PunValues = PunValues()
         self.pun_values_mp: PunValuesMP = PunValuesMP()        
@@ -198,10 +250,6 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.termine_prossima_fascia: datetime | None = None
         self.orario_prezzo: datetime = get_hour_datetime(dt_util.now(time_zone=tz_pun))
 
-        _LOGGER.debug(
-            "Coordinator inizializzato (con 'usa dati reali' = %s).",
-            self.actual_data_only,
-        )
 
     def clean_tokens(self):
         """Annulla eventuali schedulazioni attive."""
@@ -209,6 +257,12 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             self.schedule_token()
             self.schedule_token = None
 
+    def clean_tokens_arera(self):
+        """Annulla eventuali schedulazioni attive."""            
+        if self.arera_schedule_token is not None:
+            self.arera_schedule_token()
+            self.arera_schedule_token = None
+            
     def update_scan_minutes_from_config(
         self, hass: HomeAssistant, config: ConfigEntry, new_minute: bool = False
     ):
@@ -239,6 +293,226 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             # Carica i minuti dalla configurazione
             self.scan_minute = config.data.get(CONF_SCAN_MINUTE, 0)
 
+    async def update_portale_offerte(self, now=None):
+        """Update parameters from ilportaleofferte (monthly/daily depending)."""
+        _LOGGER.info("Aggiornamento dei parametri da ilportaleofferte")
+        try:
+            tariffs = await self.portale_client.get_tariff_with_fallback(self.house_type, float(self.power_in_use))
+            if not tariffs:
+                _LOGGER.warning("Parametri PortaleOfferte non disponibili, niente da aggiornare")
+                raise RuntimeError("No data from PortaleOfferte")
+
+            _LOGGER.debug("PortaleOfferte tariffe: %s", tariffs)
+
+            mp = tariffs.get("mp", {})
+            mpp = tariffs.get("mpp", {})
+
+            # mp -> set runtime attributes
+            if mp:
+                val = mp.get(CONF_ACCISA_TAX)
+                if val is not None:
+                    self.accisa_tax = float(val)
+                val = mp.get(CONF_IVA)
+                if val is not None:
+                    self.iva = float(val)
+                val = mp.get(CONF_NW_LOSS_PERCENTAGE)
+                if val is not None:
+                    self.nw_loss_percentage = float(val)
+
+                val = mp.get(CONF_ASOS_SC1)
+                if val is not None:
+                    self.port_asos_sc1 = float(val)
+                val = mp.get(CONF_ARIM_SC1)
+                if val is not None:
+                    self.port_arim_sc1 = float(val)
+
+            # mpp -> previous month
+            if mpp:
+                val = mpp.get(CONF_ACCISA_TAX)
+                if val is not None:
+                    self.accisa_tax_mp = float(val)
+                val = mpp.get(CONF_IVA)
+                if val is not None:
+                    self.iva_mp = float(val)
+                val = mpp.get(CONF_NW_LOSS_PERCENTAGE)
+                if val is not None:
+                    self.nw_loss_percentage_mp = float(val)                    
+
+                val = mpp.get(CONF_ASOS_SC1)
+                if val is not None:
+                    self.port_asos_sc1_mp = float(val)
+                val = mpp.get(CONF_ARIM_SC1)
+                if val is not None:
+                    self.port_arim_sc1_mp = float(val)
+
+
+            # Notify update listeners
+            self.async_set_updated_data({COORD_EVENT: EVENT_UPDATE_ARERA})
+            _LOGGER.info("Parametri PortaleOfferte aggiornati con successo...")
+            # reset retry schedule
+            self.web_retries_portale = WEB_RETRIES_MINUTES
+
+        except Exception as e:
+            _LOGGER.error("Errore aggiornamento PortaleOfferte: %s", e, exc_info=True)
+            # schedule retry similarly to arera logic
+            if self.web_retries_portale:
+                retry_in_minutes = self.web_retries_portale.pop(0)
+                _LOGGER.warning("Errore durante l'aggiornamento PortaleOfferte, riprovo tra %s minuti.", retry_in_minutes)
+                self.portale_schedule_token = async_call_later(self.hass, timedelta(minutes=retry_in_minutes), self.update_portale_offerte)
+            else:
+                next_update = get_next_date(dataora=dt_util.now(time_zone=tz_pun), ora=self.scan_hour, minuto=self.scan_minute, offset=1)
+                self.portale_schedule_token = async_track_point_in_time(self.hass, self.update_portale_offerte, next_update)
+                _LOGGER.debug("Prossimo aggiornamento PortaleOfferte: %s", next_update.strftime("%d/%m/%Y %H:%M:%S %z"))
+            return
+
+        # schedule next run
+        next_update = get_next_date(dataora=dt_util.now(time_zone=tz_pun), ora=self.scan_hour, minuto=self.scan_minute)
+        if next_update <= dt_util.now():
+            next_update = next_update + timedelta(days=1)
+        # cancel previous schedule token if any
+        if self.portale_schedule_token is not None:
+            try:
+                self.portale_schedule_token()
+            except Exception:
+                pass
+            self.portale_schedule_token = None
+        self.portale_schedule_token = async_track_point_in_time(self.hass, self.update_portale_offerte, next_update)
+        _LOGGER.debug("Prossimo aggiornamento PortaleOfferte pianificato: %s", next_update.strftime("%d/%m/%Y %H:%M:%S %z"))
+
+
+    async def update_arera_tariffs(self, now=None):
+        """Update ARERA tariff parameters (monthly)."""
+        _LOGGER.info("Aggiornamento dei parametri ARERA")
+        tariffs = await self.arera_client.get_tariff_with_fallback(self.house_type)
+        
+        if tariffs:
+            _LOGGER.debug("Tariffe '%s'", tariffs)
+
+            mp = tariffs.get('mp', {})
+            mpp = tariffs.get('mpp', {})
+
+            # mese-1 (mp)
+            if mp:
+                val = mp.get(CONF_ENERGY_SC1)
+                if val is not None:
+                    self.energy_sc1 = float(val)
+
+                val = mp.get(CONF_FIX_QUOTA_TRANSPORT)
+                if val is not None:
+                    self.fix_quota_transport = float(val)
+
+                val = mp.get(CONF_QUOTA_POWER)
+                if val is not None:
+                    self.quota_power = float(val)
+
+                val = mp.get(CONF_ASOS_SC1)
+                if val is not None:
+                    self.asos_sc1 = float(val)
+
+                val = mp.get(CONF_ARIM_SC1)
+                if val is not None:
+                    self.arim_sc1 = float(val)
+
+            # mese-2 (mpp)
+            if mpp:
+                val = mpp.get(CONF_ENERGY_SC1)
+                if val is not None:
+                    self.energy_sc1_mp = float(val)
+
+                val = mpp.get(CONF_FIX_QUOTA_TRANSPORT)
+                if val is not None:
+                    self.fix_quota_transport_mp = float(val)
+
+                val = mpp.get(CONF_QUOTA_POWER)
+                if val is not None:
+                    self.quota_power_mp = float(val)
+
+                val = mpp.get(CONF_ASOS_SC1)
+                if val is not None:
+                    self.asos_sc1_mp = float(val)
+
+                val = mpp.get(CONF_ARIM_SC1)
+                if val is not None:
+                    self.arim_sc1_mp = float(val)
+
+
+            # Notify that ARERA data has been updated
+            self.async_set_updated_data({COORD_EVENT: EVENT_UPDATE_ARERA})
+            
+            _LOGGER.info("Parametri ARERA aggiornati con successo...")
+
+            # Se non ci sono eccezioni, ha avuto successo
+            # Ricarica i tentativi per la prossima esecuzione
+            self.web_retries_arera = WEB_RETRIES_MINUTES
+            
+        else:
+            _LOGGER.error("Non sono riuscito ad aggiornare i parametri ARERA...")
+
+            # Errori durante l'esecuzione dell'aggiornamento, riprova dopo
+            # Annulla eventuali schedulazioni attive
+            self.clean_tokens_arera()
+
+            # Prepara la schedulazione
+            if self.web_retries_arera:
+                # Minuti dopo
+                retry_in_minutes_arera = self.web_retries_arera.pop(0)
+                _LOGGER.warning(
+                    "Errore durante l'aggiornamento dei dati ARERA, nuovo tentativo tra %s minut%s.",
+                    retry_in_minutes_arera,
+                    "o" if retry_in_minutes_arera == 1 else "i",
+                    exc_info="",
+                )
+                self.arera_schedule_token = async_call_later(
+                    self.hass, timedelta(minutes=retry_in_minutes_arera), self.update_arera_tariffs
+                )
+            else:
+                # Tentativi esauriti, passa al giorno dopo
+                _LOGGER.error(
+                    "Errore durante l'aggiornamento dei dati ARERA, tentativi esauriti.",
+                    exc_info=e,
+                )
+                next_update_arera = get_next_date(
+                    dataora=dt_util.now(time_zone=tz_pun),
+                    ora=self.scan_hour,
+                    minuto=self.scan_minute,
+                    offset=1,
+                )
+                self.arera_schedule_token = async_track_point_in_time(
+                    self.hass, self.update_arera_tariffs, next_update_arera
+                )
+                _LOGGER.debug(
+                    "Prossimo aggiornamento ARERA: %s",
+                    next_update_arera.strftime("%d/%m/%Y %H:%M:%S %z"),
+                )
+
+            # Esce e attende la prossima schedulazione
+            return
+
+
+        # Calcola la data della prossima esecuzione
+        next_update_arera = get_next_date(
+            dataora=dt_util.now(time_zone=tz_pun),
+            ora=self.scan_hour,
+            minuto=self.scan_minute,
+        )
+        if next_update_arera <= dt_util.now():
+            # Se l'evento è già trascorso, passa a domani alla stessa ora
+            next_update_arera = next_update_arera + timedelta(days=1)
+
+        # Annulla eventuali schedulazioni attive
+        self.clean_tokens_arera()
+
+        # Schedula la prossima esecuzione
+        self.arera_schedule_token = async_track_point_in_time(
+            self.hass, self.update_arera_tariffs, next_update_arera
+        )
+        _LOGGER.debug(
+            "Prossimo aggiornamento dei dati ARERA: %s",
+            next_update_arera.strftime("%d/%m/%Y %H:%M:%S %z"),
+        )
+
+
+        
     async def _async_update_data(self, mp):
         """Aggiornamento dati a intervalli prestabiliti."""
 
@@ -254,8 +528,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             date_start = date(date_end.year, date_end.month, 1)
 
         # All'inizio del mese, aggiunge i valori del mese precedente
-        # a meno che CONF_ACTUAL_DATA_ONLY non sia impostato
-        if (not self.actual_data_only) and (date_end.day < 5) and mp=="N":
+        if (date_end.day < 5) and mp=="N":
             date_start = date_start - timedelta(days=3)
 
         start_date_param = date_start.strftime("%Y%m%d")

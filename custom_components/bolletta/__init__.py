@@ -31,21 +31,15 @@ from .const import (
     CONF_MONTHLY_FEE,
     CONF_NW_LOSS_PERCENTAGE,
     CONF_OTHER_FEE,
-    CONF_FIX_QUOTA_TRANSPORT,
-    CONF_QUOTA_POWER,
     CONF_POWER_IN_USE,
-    CONF_ENERGY_SC1,
-    CONF_ASOS_SC1,
-    CONF_ASOS_SC2,
-    CONF_ARIM_SC1,
-    CONF_ARIM_SC2,
     CONF_ACCISA_TAX,
     CONF_IVA,
     CONF_DISCOUNT,
     CONF_TV_TAX,
     CONF_MONTHY_ENTITY_SENSOR,
     CONF_PUN_MODE,
-    CONF_FIXED_PUN_VALUE
+    CONF_FIXED_PUN_VALUE,
+    CONF_HOUSE_TYPE
 )
 
 import logging
@@ -55,7 +49,7 @@ _LOGGER = logging.getLogger(__name__)
 tz_pun = ZoneInfo('Europe/Rome')
 
 # Definisce i tipi di entità
-PLATFORMS: list[str] = ["sensor"]
+PLATFORMS: list[str] = ["sensor", "switch"]
 
 async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     """Impostazione dell'integrazione da configurazione Home Assistant"""
@@ -82,7 +76,10 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     coordinator.schedule_token = async_call_later(
         hass, timedelta(seconds=10), coordinator.update_pun
     )
-    
+
+    hass.async_create_task(coordinator.update_arera_tariffs())
+    hass.async_create_task(coordinator.update_portale_offerte())
+
     # Registra il callback di modifica opzioni
     config.async_on_unload(config.add_update_listener(update_listener))
     return True
@@ -103,49 +100,50 @@ async def update_listener(hass: HomeAssistant, config: ConfigEntry) -> None:
     # Recupera il coordinator
     coordinator = hass.data[DOMAIN][config.entry_id]
 
-    if config.options[CONF_FIX_QUOTA_AGGR_MEASURE] != coordinator.fix_quota_aggr_measure:
-        coordinator.fix_quota_aggr_measure = config.options[CONF_FIX_QUOTA_AGGR_MEASURE]
+    # Use .get() method with default values to avoid KeyError
+    # Also check if the key exists in options before comparing
+    new_fix_quota = config.options.get(CONF_FIX_QUOTA_AGGR_MEASURE, coordinator.fix_quota_aggr_measure)
+    if new_fix_quota != coordinator.fix_quota_aggr_measure:
+        coordinator.fix_quota_aggr_measure = new_fix_quota
         
-    if config.options[CONF_MONTHLY_FEE] != coordinator.monthly_fee:
-        coordinator.monthly_fee = config.options[CONF_MONTHLY_FEE]
+    new_monthly_fee = config.options.get(CONF_MONTHLY_FEE, coordinator.monthly_fee)
+    if new_monthly_fee != coordinator.monthly_fee:
+        coordinator.monthly_fee = new_monthly_fee
 
+    new_other_fee = config.options.get(CONF_OTHER_FEE, coordinator.other_fee)
+    if new_other_fee != coordinator.other_fee:
+        coordinator.other_fee = new_other_fee
+        
+    new_monthly_entity = config.options.get(CONF_MONTHY_ENTITY_SENSOR, coordinator.monthly_entity_sensor)
+    if new_monthly_entity != coordinator.monthly_entity_sensor:
+        coordinator.monthly_entity_sensor = new_monthly_entity
+        
+    new_pun_mode = config.options.get(CONF_PUN_MODE, coordinator.pun_mode)
+    if new_pun_mode != coordinator.pun_mode:
+        coordinator.pun_mode = new_pun_mode
+        
+    new_fixed_pun = config.options.get(CONF_FIXED_PUN_VALUE, coordinator.fixed_pun_value)
+    if new_fixed_pun != coordinator.fixed_pun_value:
+        coordinator.fixed_pun_value = new_fixed_pun
 
-    if config.options[CONF_NW_LOSS_PERCENTAGE] != coordinator.nw_loss_percentage:
-        coordinator.nw_loss_percentage = config.options[CONF_NW_LOSS_PERCENTAGE]
-    if config.options[CONF_OTHER_FEE] != coordinator.other_fee:
-        coordinator.other_fee = config.options[CONF_OTHER_FEE]
-    if config.options[CONF_MONTHY_ENTITY_SENSOR] != coordinator.monthly_entity_sensor:
-        coordinator.monthly_entity_sensor = config.options[CONF_MONTHY_ENTITY_SENSOR]
-    if config.options[CONF_PUN_MODE] != coordinator.pun_mode:
-        coordinator.pun_mode = config.options[CONF_PUN_MODE]
-    if config.options.get(CONF_FIXED_PUN_VALUE) != coordinator.fixed_pun_value:
-        coordinator.fixed_pun_value = config.options.get(CONF_FIXED_PUN_VALUE)
+    new_power_in_use = config.options.get(CONF_POWER_IN_USE, coordinator.power_in_use)
+    if new_power_in_use != coordinator.power_in_use:
+        coordinator.power_in_use = new_power_in_use
 
-    if config.options[CONF_FIX_QUOTA_TRANSPORT] != coordinator.fix_quota_transport:
-        coordinator.fix_quota_transport = config.options[CONF_FIX_QUOTA_TRANSPORT]
-    if config.options[CONF_QUOTA_POWER] != coordinator.quota_power:
-        coordinator.quota_power = config.options[CONF_QUOTA_POWER]
-    if config.options[CONF_POWER_IN_USE] != coordinator.power_in_use:
-        coordinator.power_in_use = config.options[CONF_POWER_IN_USE]
-    if config.options[CONF_ENERGY_SC1] != coordinator.energy_sc1:
-        coordinator.energy_sc1 = config.options[CONF_ENERGY_SC1]
+    new_discount = config.options.get(CONF_DISCOUNT, coordinator.discount)
+    if new_discount != coordinator.discount:
+        coordinator.discount = new_discount
+        
+    new_tv_tax = config.options.get(CONF_TV_TAX, coordinator.tv_tax)
+    if new_tv_tax != coordinator.tv_tax:
+        coordinator.tv_tax = new_tv_tax
 
-    if config.options[CONF_ASOS_SC1] != coordinator.asos_sc1:
-        coordinator.asos_sc1 = config.options[CONF_ASOS_SC1]
-    if config.options[CONF_ASOS_SC2] != coordinator.asos_sc2:
-        coordinator.asos_sc2 = config.options[CONF_ASOS_SC2]
-    if config.options[CONF_ARIM_SC1] != coordinator.arim_sc1:
-        coordinator.arim_sc1 = config.options[CONF_ARIM_SC1]
-    if config.options[CONF_ARIM_SC2] != coordinator.arim_sc2:
-        coordinator.arim_sc2 = config.options[CONF_ARIM_SC2]
-    if config.options[CONF_ACCISA_TAX] != coordinator.accisa_tax:
-        coordinator.accisa_tax = config.options[CONF_ACCISA_TAX]
-
-    if config.options[CONF_IVA] != coordinator.iva:
-        coordinator.iva = config.options[CONF_IVA]
-    if config.options[CONF_DISCOUNT] != coordinator.discount:
-        coordinator.discount = config.options[CONF_DISCOUNT]
-    if config.options[CONF_TV_TAX] != coordinator.tv_tax:
-        coordinator.tv_tax = config.options[CONF_TV_TAX]
+    # Update house type and schedule ARERA update
+    new_house_type = config.options.get(CONF_HOUSE_TYPE, coordinator.house_type)
+    if new_house_type != coordinator.house_type:
+        coordinator.house_type = new_house_type
+        # Schedule an immediate ARERA tariff update
+        hass.async_create_task(coordinator.update_arera_tariffs())
+        hass.async_create_task(coordinator.update_portale_offerte())
 
 

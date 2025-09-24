@@ -19,6 +19,8 @@ from homeassistant.helpers.restore_state import (
     RestoredExtraData
 )
 from typing import Any, Dict
+from datetime import timedelta
+from homeassistant.helpers.event import async_track_time_interval
 
 from . import PUNDataUpdateCoordinator
 from .const import (
@@ -38,7 +40,17 @@ from .const import (
     EVENT_UPDATE_FASCIA,
     EVENT_UPDATE_PREZZO_ZONALE,
     EVENT_UPDATE_PUN,
-    PUN_MODE_FIXED
+    PUN_MODE_FIXED,
+    CONF_ENERGY_SC1,
+    CONF_ENERGY_SC1_MP,
+    CONF_FIX_QUOTA_TRANSPORT,
+    CONF_FIX_QUOTA_TRANSPORT_MP,
+    CONF_QUOTA_POWER,
+    CONF_QUOTA_POWER_MP,
+    CONF_ASOS_SC1,
+    CONF_ASOS_SC1_MP,
+    CONF_ARIM_SC1,
+    CONF_ARIM_SC1_MP,
 )
 
 from awesomeversion.awesomeversion import AwesomeVersion
@@ -99,12 +111,36 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry,
         PUNSensorEntity(coordinator, fascia) for fascia in PunValuesMP().value
     )
 
+    # ARERA sensors - grouped under different device
+    entities.append(AreraSensorEntity(coordinator, CONF_ENERGY_SC1))
+    entities.append(AreraSensorEntity(coordinator, CONF_ENERGY_SC1_MP))
+    entities.append(AreraSensorEntity(coordinator, CONF_FIX_QUOTA_TRANSPORT))
+    entities.append(AreraSensorEntity(coordinator, CONF_FIX_QUOTA_TRANSPORT_MP))
+    entities.append(AreraSensorEntity(coordinator, CONF_QUOTA_POWER))
+    entities.append(AreraSensorEntity(coordinator, CONF_QUOTA_POWER_MP))
+    entities.append(AreraSensorEntity(coordinator, CONF_ASOS_SC1))
+    entities.append(AreraSensorEntity(coordinator, CONF_ASOS_SC1_MP))
+    entities.append(AreraSensorEntity(coordinator, CONF_ARIM_SC1))
+    entities.append(AreraSensorEntity(coordinator, CONF_ARIM_SC1_MP))
+
+    # PortaleOfferte sensors - grouped under different device
+    entities.append(PortaleOfferteSensorEntity(coordinator, "accisa_tax"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "accisa_tax_mp"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "iva"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "iva_mp"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "nw_loss_percentage"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "nw_loss_percentage_mp"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "port_asos_sc1"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "port_asos_sc1_mp"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "port_arim_sc1"))
+    entities.append(PortaleOfferteSensorEntity(coordinator, "port_arim_sc1_mp"))
+
     # Crea sensori aggiuntivi
     entities.append(FasciaPUNSensorEntity(coordinator))
     entities.append(PrezzoFasciaPUNSensorEntity(coordinator))
     entities.append(PrezzoZonaleSensorEntity(coordinator))
     entities.append(PUNOrarioSensorEntity(coordinator))
-    
+
     # Aggiunge i sensori ma non aggiorna automaticamente via web
     # per lasciare il tempo ad Home Assistant di avviarsi
     async_add_entities(entities, update_before_add=False)
@@ -130,10 +166,12 @@ def fmt_float(num: float):
     # decimale già adeguatamente formattato come stringa
     return format(round(num, 6), '.6f')
 
-class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
-    """Sensore relativo alla fattura"""
-    
-    def __init__(self, coordinator: PUNDataUpdateCoordinator, tipo: int) -> None:
+from homeassistant.components.binary_sensor import BinarySensorEntity
+
+class PortaleOfferteSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
+    """Sensore per i parametri provenienti da ilportaleofferte."""
+
+    def __init__(self, coordinator: PUNDataUpdateCoordinator, tipo: str) -> None:
         super().__init__(coordinator)
 
         # Inizializza coordinator e tipo
@@ -141,190 +179,251 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self.tipo = tipo
 
         # ID univoco sensore basato su un nome fisso
-        if (self.tipo == BILL_KWH_PRICE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_kwh_price')
-        elif (self.tipo == BILL_ENERGY_FIX_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_energy_fix_quote')
-        elif (self.tipo == BILL_ENERGY_ENERGY_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_energy_energy_quote')
-        elif (self.tipo == BILL_TRANSPORT_FIX_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_fix_quote')
-        elif (self.tipo == BILL_TRANSPORT_POWER_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_power_quote')
-        elif (self.tipo == BILL_TRANSPORT_ENERGY_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_energy_quote')
-        elif (self.tipo == BILL_ASOS_ARIM_QUOTE):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_asos_arim_quote')
-        elif (self.tipo == BILL_ACCISA_TAX):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_accisa_tax')
-        elif (self.tipo == BILL_IVA):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_iva')
-        elif (self.tipo == BILL_TOTAL):
-            self.entity_id = ENTITY_ID_FORMAT.format('bill_total')
-        else:
-            self.entity_id = None
+        self.entity_id = ENTITY_ID_FORMAT.format(f"portaleofferte_{tipo}")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_device_class = SensorDeviceClass.MONETARY
-        self._attr_suggested_display_precision = 2
+        self._attr_suggested_display_precision = 6
+        self._available = False
+        self._native_value = 0.0
+
+    @property
+    def device_info(self):
+        """Return device information for PortaleOfferte parameters."""
+        return {
+            "identifiers": {(DOMAIN, "portale_offerte_parameters")},
+            "name": "Parametri IlPortaleOfferte",
+            "manufacturer": "IlPortaleOfferte",
+            "model": "Parametri Opendata",
+        }
+
+    def manage_update(self):
+        """Aggiorna il valore leggendo gli attributi dal coordinator."""
+        try:
+            if self.tipo == "accisa_tax":
+                self._native_value = float(getattr(self.coordinator, "accisa_tax", 0.0) or 0.0)
+            elif self.tipo == "accisa_tax_mp":
+                self._native_value = float(getattr(self.coordinator, "accisa_tax_mp", 0.0) or 0.0)
+            elif self.tipo == "iva":
+                self._native_value = float(getattr(self.coordinator, "iva", 0.0) or 0.0)
+            elif self.tipo == "iva_mp":
+                self._native_value = float(getattr(self.coordinator, "iva_mp", 0.0) or 0.0)
+            elif self.tipo == "nw_loss_percentage":
+                self._native_value = float(getattr(self.coordinator, "nw_loss_percentage", 0.0) or 0.0)
+            elif self.tipo == "nw_loss_percentage_mp":
+                self._native_value = float(getattr(self.coordinator, "nw_loss_percentage_mp", 0.0) or 0.0)
+            elif self.tipo == "port_asos_sc1":
+                self._native_value = float(getattr(self.coordinator, "port_asos_sc1", 0.0) or 0.0)
+            elif self.tipo == "port_asos_sc1_mp":
+                self._native_value = float(getattr(self.coordinator, "port_asos_sc1_mp", 0.0) or 0.0)
+            elif self.tipo == "port_arim_sc1":
+                self._native_value = float(getattr(self.coordinator, "port_arim_sc1", 0.0) or 0.0)
+            elif self.tipo == "port_arim_sc1_mp":
+                self._native_value = float(getattr(self.coordinator, "port_arim_sc1_mp", 0.0) or 0.0)
+            else:
+                # Unknown tipo -> do nothing
+                return
+
+            self._available = True
+            self.async_write_ha_state()
+
+        except Exception as e:
+            _LOGGER.error(f"Errore nell'aggiornamento del sensore PortaleOfferte {self.tipo}: {e}")
+            self._available = False
+
+    async def async_update(self):
+        self.manage_update()
+
+    def _handle_coordinator_update(self) -> None:
+        """Gestisce l'aggiornamento dei dati dal coordinator."""
+        self.manage_update()
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData:
+        """Determina i dati da salvare per il ripristino successivo"""
+        return RestoredExtraData(dict(
+            native_value = self._native_value if self._available else None
+        ))
+
+    async def async_added_to_hass(self) -> None:
+        """Entità aggiunta ad Home Assistant"""
+        await super().async_added_to_hass()
+
+        # Recupera lo stato precedente, se esiste
+        if (old_data := await self.async_get_last_extra_data()) is not None:
+            if (old_native_value := old_data.as_dict().get('native_value')) is not None:
+                self._available = True
+                self._native_value = old_native_value
+
+    @property
+    def should_poll(self) -> bool:
+        """Determina l'aggiornamento automatico"""
+        return True
+
+    @property
+    def available(self) -> bool:
+        """Determina se il valore è disponibile"""
+        return self._available
+
+    @property
+    def native_value(self) -> float:
+        """Valore corrente del sensore"""
+        return self._native_value
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Unita' di misura specifica per il parametro PortaleOfferte."""
+        # Parametri che sono percentuali
+        percent_keys = {"iva", "iva_mp", "nw_loss_percentage", "nw_loss_percentage_mp"}
+
+        # Parametri espressi in euro per kWh (valori variabili/energia)
+        eur_per_kwh_keys = {
+            "accisa_tax",
+            "accisa_tax_mp",
+            "port_asos_sc1",
+            "port_asos_sc1_mp",
+            "port_arim_sc1",
+            "port_arim_sc1_mp",
+        }
+
+        if self.tipo in percent_keys:
+            return "%"  # percentuale
+        if self.tipo in eur_per_kwh_keys:
+            return f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
+        # fallback: string describing the parameter
+        return self.tipo
+
+
+    @property
+    def state(self) -> str:
+        # Parametri che sono percentuali
+        percent_keys = {"iva", "iva_mp", "nw_loss_percentage", "nw_loss_percentage_mp"}
+
+        # Parametri espressi in euro per kWh (valori variabili/energia)
+        eur_per_kwh_keys = {
+            "accisa_tax",
+            "accisa_tax_mp",
+            "port_asos_sc1",
+            "port_asos_sc1_mp",
+            "port_arim_sc1",
+            "port_arim_sc1_mp",
+        }
+
+        if self.tipo in percent_keys:
+            return fmt_float(self.native_value) * 100
+        if self.tipo in eur_per_kwh_keys:
+            return fmt_float(self.native_value)
+        # fallback: string describing the parameter
+        return self.tipo
+
+    @property
+    def icon(self) -> str:
+        """Icona da usare nel frontend"""
+        return "mdi:chart-line-variant"
+
+    @property
+    def name(self) -> str:
+        """Restituisce il nome del sensore"""
+        names = {
+            "accisa_tax": "Imposta erariale di consumo (accisa)",
+            "accisa_tax_mp": "Imposta erariale di consumo (accisa) Mese Precedente",
+            "iva": "IVA",
+            "iva_mp": "IVA Mese Precedente",
+            "nw_loss_percentage": "Perdite di rete in percentuale",
+            "nw_loss_percentage_mp": "Perdite di rete in percentuale Mese Precedente",
+            "port_asos_sc1": "ASOS",
+            "port_asos_sc1_mp": "ASOS Mese Precedente",
+            "port_arim_sc1": "ARIM",
+            "port_arim_sc1_mp": "ARIM Mese Precedente",
+        }
+        return names.get(self.tipo, f"PortaleOfferte {self.tipo}")
+
+    @property
+    def extra_state_attributes(self) -> Dict[str, Any]:
+        """Restituisce gli attributi di stato"""
+        if has_suggested_display_precision:
+            return None
+
+        state_attr = {
+            ATTR_ROUNDED_DECIMALS: str(format(round(self.native_value, 6), '.6f'))
+        }
+        return state_attr
+
+
+class AreraSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
+    """Sensore per i parametri ARERA"""
+    
+    def __init__(self, coordinator: PUNDataUpdateCoordinator, tipo: str) -> None:
+        super().__init__(coordinator)
+
+        # Inizializza coordinator e tipo
+        self.coordinator = coordinator
+        self.tipo = tipo
+
+        # ID univoco sensore basato su un nome fisso
+        self.entity_id = ENTITY_ID_FORMAT.format(f"arera_{tipo}")
+        self._attr_unique_id = self.entity_id
+        self._attr_has_entity_name = False
+
+        # Inizializza le proprietà comuni
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_suggested_display_precision = 6
         self._available = False
         self._native_value = 0
+
+    @property
+    def device_info(self):
+        """Return device information for ARERA parameters."""
+        return {
+            "identifiers": {(DOMAIN, "arera_parameters")},
+            "name": "Parametri Arera",
+            "manufacturer": "Arera",
+            "model": "Parametri Tariffari Arera",
+        }
         
     def manage_update(self):
-        global bill_total_energy_fix_quote
-        global bill_total_energy_energy_quote
-        global bill_total_transport_fix_quote
-        global bill_total_transport_power_quote
-        global bill_total_transport_energy_quote
-        global bill_total_asos_arim_quote
-        global bill_total_accisa_tax
-        global bill_total_iva
-        global bill_kwh_price
-
-        if self.tipo==BILL_KWH_PRICE:  
-            if self.coordinator.pun_mode == PUN_MODE_FIXED:
-                pun_value = self.coordinator.fixed_pun_value
-                total =  ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) + float(self.coordinator.other_fee))
+        """Gestisce l'aggiornamento dei valori ARERA"""
+        try:
+            if self.tipo == CONF_ENERGY_SC1:
+                self._native_value = self.coordinator.energy_sc1
+            elif self.tipo == CONF_ENERGY_SC1_MP:
+                self._native_value = self.coordinator.energy_sc1_mp
+            elif self.tipo == CONF_FIX_QUOTA_TRANSPORT:
+                self._native_value = self.coordinator.fix_quota_transport
+            elif self.tipo == CONF_FIX_QUOTA_TRANSPORT_MP:
+                self._native_value = self.coordinator.fix_quota_transport_mp
+            elif self.tipo == CONF_QUOTA_POWER:
+                self._native_value = self.coordinator.quota_power
+            elif self.tipo == CONF_QUOTA_POWER_MP:
+                self._native_value = self.coordinator.quota_power_mp
+            elif self.tipo == CONF_ASOS_SC1:
+                self._native_value = self.coordinator.asos_sc1
+            elif self.tipo == CONF_ASOS_SC1_MP:
+                self._native_value = self.coordinator.asos_sc1_mp
+            elif self.tipo == CONF_ARIM_SC1:
+                self._native_value = self.coordinator.arim_sc1
+            elif self.tipo == CONF_ARIM_SC1_MP:
+                self._native_value = self.coordinator.arim_sc1_mp
             else:
-                total =  ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario').state) + float(self.coordinator.other_fee))
-                        
-            total += self.coordinator.energy_sc1
-            total += self.coordinator.asos_sc1
-            total += self.coordinator.arim_sc1
-            total += self.coordinator.accisa_tax
-
-            self._available = True
-            self._native_value = total
-            bill_kwh_price = total
-            self.async_write_ha_state()
-        elif self.tipo==BILL_ENERGY_FIX_QUOTE:  
-            total = round(self.coordinator.fix_quota_aggr_measure * 2 + self.coordinator.monthly_fee * 2,2)
-
-            self._available = True
-            self._native_value = total
-            bill_total_energy_fix_quote = total
-            self.async_write_ha_state()
-        elif self.tipo==BILL_ENERGY_ENERGY_QUOTE:  
-            current_month = dt_util.now().date().month
+                return
             
-            total = 0
-
-            if self.coordinator.pun_mode == PUN_MODE_FIXED:
-                pun_value = self.coordinator.fixed_pun_value
-                total = float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) + float(self.coordinator.other_fee))
-                if (current_month % 2) == 0:
-                    total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) + float(self.coordinator.other_fee))
-            else:
-                total = float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario').state) + float(self.coordinator.other_fee))
-                if (current_month % 2) == 0:
-                    total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((1 + float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario_mp').state) + float(self.coordinator.other_fee))
-                 
             self._available = True
-            self._native_value = total
-            bill_total_energy_energy_quote = total
             self.async_write_ha_state()
-        elif self.tipo==BILL_TRANSPORT_FIX_QUOTE:  
-            total = 0
-            total = self.coordinator.fix_quota_transport * 2
-            self._available = True
-            self._native_value = total
-            bill_total_transport_fix_quote = total
-            self.async_write_ha_state()
-        elif self.tipo==BILL_TRANSPORT_POWER_QUOTE:  
-            total = 0
-            total = self.coordinator.quota_power * self.coordinator.power_in_use * 2
-            self._available = True
-            self._native_value = total
-            bill_total_transport_power_quote = total
-            self.async_write_ha_state()
-        elif self.tipo==BILL_TRANSPORT_ENERGY_QUOTE:  
-            current_month = dt_util.now().date().month
-
-            total = 0
-            total = float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.energy_sc1
-            if (current_month % 2) == 0:
-                total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.energy_sc1
-            self._available = True
-            self._native_value = total
-            bill_total_transport_energy_quote = total
-            self.async_write_ha_state()
-
-
-
-
-        elif self.tipo==BILL_ASOS_ARIM_QUOTE:  
-            current_month = dt_util.now().date().month
-
-            total = 0
-            total = float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.asos_sc1
-            # total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.asos_sc2
-            total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.arim_sc1
-            # total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.arim_sc2
-            if (current_month % 2) == 0:
-                total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.asos_sc1
-                # total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.asos_sc2
-                total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.arim_sc1
-                # total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.arim_sc2
-            self._available = True
-            self._native_value = total
-            bill_total_asos_arim_quote = total
-            self.async_write_ha_state()
-
-        elif self.tipo==BILL_ACCISA_TAX:  
-            current_month = dt_util.now().date().month
-
-            total = 0
-            total = float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.accisa_tax
-            if (current_month % 2) == 0:
-                total += float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.accisa_tax
-            self._available = True
-            self._native_value = total
-            bill_total_accisa_tax = total
-            self.async_write_ha_state()
-
-        elif self.tipo==BILL_IVA:  
-            total = round(float(bill_total_energy_fix_quote),2)
-            total += round(float(bill_total_energy_energy_quote),2)
-            total += round(float(bill_total_transport_fix_quote),2)
-            total += round(float(bill_total_transport_power_quote),2)
-            total += round(float(bill_total_transport_energy_quote),2)
-            total += round(float(bill_total_asos_arim_quote),2)
-            total += round(float(bill_total_accisa_tax),2)
             
-            total = total * float(self.coordinator.iva)/100
-            self._available = True
-            self._native_value = total
-            bill_total_iva = total
-            self.async_write_ha_state()
-
-        elif self.tipo==BILL_TOTAL:  
-            current_month = dt_util.now().date().month
-            
-            total = round(float(bill_total_energy_fix_quote),2)
-            total += round(float(bill_total_energy_energy_quote),2)
-            total += round(float(bill_total_transport_fix_quote),2)
-            total += round(float(bill_total_transport_power_quote),2)
-            total += round(float(bill_total_transport_energy_quote),2)
-            total += round(float(bill_total_asos_arim_quote),2)
-            total += round(float(bill_total_accisa_tax),2)
-            total += round(float(bill_total_iva),2)
-            total -= round(float(self.coordinator.discount),2)*2
-            if current_month!=11 and current_month!=12:
-                total += round(float(self.coordinator.tv_tax),2)*2
-            self._available = True
-            self._native_value = total
-            self.async_write_ha_state()
-
+        except Exception as e:
+            _LOGGER.error(f"Errore nell'aggiornamento del sensore ARERA {self.tipo}: {e}")
+            self._available = False
+        
     async def async_update(self):
         self.manage_update()
         
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator"""
         self.manage_update()
-        
 
     @property
     def extra_restore_state_data(self) -> ExtraStoredData:
@@ -361,6 +460,388 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
     @property
     def native_unit_of_measurement(self) -> str:
         """Unita' di misura"""
+        return f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        eur_per_month_keys = {"fix_quota_transport", "fix_quota_transport_mp"}
+        eur_per_kwh_per_month_keys = {"quota_power", "quota_power_mp"}
+
+        # Parametri espressi in euro per kWh (valori variabili/energia)
+        eur_per_kwh_keys = {
+            "energy_sc1",
+            "energy_sc1_mp",
+            "asos_sc1",
+            "asos_sc1_mp",
+            "arim_sc1",
+            "arim_sc1_mp",
+        }
+
+        if self.tipo in eur_per_month_keys:
+            return f"{CURRENCY_EURO}/mese"
+        if self.tipo in eur_per_kwh_per_month_keys:
+            return f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}/mese"
+        if self.tipo in eur_per_kwh_keys:
+            return f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
+        # fallback: string describing the parameter
+        return self.tipo
+
+
+    @property
+    def state(self) -> str:
+        return fmt_float(self.native_value)
+
+    @property
+    def icon(self) -> str:
+        """Icona da usare nel frontend"""
+        return "mdi:chart-line"
+
+    @property
+    def name(self) -> str:
+        """Restituisce il nome del sensore"""
+        names = {
+            CONF_ENERGY_SC1: "Quota energia",
+            CONF_ENERGY_SC1_MP: "Quota energia Mese Precedente",
+            CONF_FIX_QUOTA_TRANSPORT: "Quota Fissa Trasporto",
+            CONF_FIX_QUOTA_TRANSPORT_MP: "Quota Fissa Trasporto Mese Precedente",
+            CONF_QUOTA_POWER: "Quota Potenza",
+            CONF_QUOTA_POWER_MP: "Quota Potenza Mese Precedente",
+            CONF_ASOS_SC1: "ASOS",
+            CONF_ASOS_SC1_MP: "ASOS Mese Precedente",
+            CONF_ARIM_SC1: "ARIM",
+            CONF_ARIM_SC1_MP: "ARIM Mese Precedente",
+        }
+        return names.get(self.tipo, "Parametro Arera")
+
+    @property
+    def extra_state_attributes(self) -> Dict[str, Any]:
+        """Restituisce gli attributi di stato"""
+        if has_suggested_display_precision:
+            return None
+        
+        # Nelle versioni precedenti di Home Assistant
+        # restituisce un valore arrotondato come attributo
+        state_attr = {
+            ATTR_ROUNDED_DECIMALS: str(format(round(self.native_value, 6), '.6f'))
+        }
+        return state_attr
+        
+class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
+    """Sensore relativo alla fattura"""
+    
+    def __init__(self, coordinator: PUNDataUpdateCoordinator, tipo: int) -> None:
+        super().__init__(coordinator)
+
+        # Inizializza coordinator e tipo
+        self.coordinator = coordinator
+        self.tipo = tipo
+
+        # ID univoco sensore basato su un nome fisso
+        if (self.tipo == BILL_KWH_PRICE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_kwh_price')
+        elif (self.tipo == BILL_ENERGY_FIX_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_energy_fix_quote')
+        elif (self.tipo == BILL_ENERGY_ENERGY_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_energy_energy_quote')
+        elif (self.tipo == BILL_TRANSPORT_FIX_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_fix_quote')
+        elif (self.tipo == BILL_TRANSPORT_POWER_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_power_quote')
+        elif (self.tipo == BILL_TRANSPORT_ENERGY_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_transport_energy_quote')
+        elif (self.tipo == BILL_ASOS_ARIM_QUOTE):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_asos_arim_quote')
+        elif (self.tipo == BILL_ACCISA_TAX):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_accisa_tax')
+        elif (self.tipo == BILL_IVA):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_iva')
+        elif (self.tipo == BILL_TOTAL):
+            self.entity_id = ENTITY_ID_FORMAT.format('bill_total')
+        else:
+            self.entity_id = None
+        self._attr_unique_id = self.entity_id
+        self._attr_has_entity_name = False
+
+        # Inizializza le proprietà comuni
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_suggested_display_precision = 2
+        self._available = False
+        self._native_value = 0
+
+    @property
+    def device_info(self):
+        """Return device information for Bolletta."""
+        return {
+            "identifiers": {(DOMAIN, "bolletta")},
+            "name": "Monitor Costi Energia",
+            "manufacturer": "Bolletta",
+            "model": "Calcolo della Bolletta Elettrica",
+        }
+        
+    def manage_update(self):
+        global bill_total_energy_fix_quote
+        global bill_total_energy_energy_quote
+        global bill_total_transport_fix_quote
+        global bill_total_transport_power_quote
+        global bill_total_transport_energy_quote
+        global bill_total_asos_arim_quote
+        global bill_total_accisa_tax
+        global bill_total_iva
+        global bill_kwh_price
+        
+        fattura_shift = self.hass.states.get("switch.invoice_shift")
+        fattura_mensile = self.hass.states.get("switch.invoice_monthly")
+
+        shift_on = fattura_shift and fattura_shift.state == "on"
+        monthly = fattura_mensile and fattura_mensile.state == "on"
+        current_month = dt_util.now().date().month
+
+        if monthly:
+            # fatturazione mese singolo → non sommare mai last_period
+            include_last_period = False
+        else:
+            # bimestrale
+            if shift_on:
+                include_last_period = (current_month % 2) == 1   # Feb/Mar, Apr/Mag…
+            else:
+                include_last_period = (current_month % 2) == 0   # Gen/Feb, Mar/Apr…
+
+
+        if self.tipo==BILL_KWH_PRICE:  
+            try:
+                if self.coordinator.pun_mode == PUN_MODE_FIXED:
+                    pun_value = self.coordinator.fixed_pun_value
+                    total = round(float(pun_value) , 2)
+                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) , 2)
+                    total += round(float(self.coordinator.other_fee) , 2)
+                else:
+                    total = round(float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
+                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
+                    total += round(float(self.coordinator.other_fee) , 2)
+                            
+                total += round(self.coordinator.energy_sc1 , 2)
+                total += round(self.coordinator.asos_sc1 , 2)
+                total += round(self.coordinator.arim_sc1 , 2)
+                total += round(self.coordinator.accisa_tax , 2)
+
+                self._available = True
+                self._native_value = total
+                bill_kwh_price = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_ENERGY_FIX_QUOTE:  
+            try:
+                total = round(self.coordinator.fix_quota_aggr_measure ,2) + round(self.coordinator.monthly_fee ,2)
+                if include_last_period:
+                    total += round(self.coordinator.fix_quota_aggr_measure ,2) + round(self.coordinator.monthly_fee ,2)
+
+                self._available = True
+                self._native_value = total
+                bill_total_energy_fix_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_ENERGY_ENERGY_QUOTE:  
+            try:
+                total = 0
+
+                if self.coordinator.pun_mode == PUN_MODE_FIXED:
+                    pun_value = self.coordinator.fixed_pun_value
+                    total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) *  float(pun_value), 2)
+                    total = float(f"{total:.2f}")
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.nw_loss_percentage)) *  float(pun_value)), 2)
+                    total = float(f"{total:.2f}")
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.other_fee))), 2)
+                    total = float(f"{total:.2f}")
+                    if include_last_period:
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) *  float(pun_value), 2)
+                        total = float(f"{total:.2f}")
+                        total += round((float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.nw_loss_percentage)) *  float(pun_value))), 2)
+                        total = float(f"{total:.2f}")
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.other_fee))), 2)
+                        total = float(f"{total:.2f}")
+                else:
+                    total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) *  float(self.hass.states.get('sensor.pun_mono_orario').state), 2)
+                    total = float(f"{total:.2f}")
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.nw_loss_percentage)) *  float(self.hass.states.get('sensor.pun_mono_orario').state)), 2)
+                    total = float(f"{total:.2f}")
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.other_fee))), 2)
+                    total = float(f"{total:.2f}")
+                    if include_last_period:
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) *  float(self.hass.states.get('sensor.pun_mono_orario_mp').state) , 2)
+                        total = float(f"{total:.2f}")
+                        total += round((float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.nw_loss_percentage)) *  float(self.hass.states.get('sensor.pun_mono_orario_mp').state))), 2)
+                        total = float(f"{total:.2f}")
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.other_fee))), 2)
+                        total = float(f"{total:.2f}")
+                     
+                self._available = True
+                self._native_value = total
+                bill_total_energy_energy_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_TRANSPORT_FIX_QUOTE:  
+            try:
+                total = 0
+                total = round(self.coordinator.fix_quota_transport,2)
+                if include_last_period:
+                    total += round(self.coordinator.fix_quota_transport_mp,2)
+                self._available = True
+                self._native_value = total
+                bill_total_transport_fix_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_TRANSPORT_POWER_QUOTE:  
+            try:
+                total = 0
+                total = round((self.coordinator.quota_power) * self.coordinator.power_in_use,2)
+                if include_last_period:
+                    total += round((self.coordinator.quota_power_mp) * self.coordinator.power_in_use,2)
+                self._available = True
+                self._native_value = total
+                bill_total_transport_power_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_TRANSPORT_ENERGY_QUOTE:  
+            try:
+                total = 0
+                total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.energy_sc1,2)
+                if include_last_period:
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.energy_sc1_mp,2)
+                self._available = True
+                self._native_value = total
+                bill_total_transport_energy_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_ASOS_ARIM_QUOTE:  
+            try:
+                total = 0
+                total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.asos_sc1,2)
+                total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.arim_sc1,2)
+                if include_last_period:
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.asos_sc1_mp,2)
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.arim_sc1_mp,2)
+                self._available = True
+                self._native_value = total
+                bill_total_asos_arim_quote = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_ACCISA_TAX:  
+            try:
+                total = 0
+                total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.accisa_tax,2)
+                if include_last_period:
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.accisa_tax,2)
+                self._available = True
+                self._native_value = total
+                bill_total_accisa_tax = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_IVA:  
+            try:
+                total = round(float(bill_total_energy_fix_quote),2)
+                total += round(float(bill_total_energy_energy_quote),2)
+                total += round(float(bill_total_transport_fix_quote),2)
+                total += round(float(bill_total_transport_power_quote),2)
+                total += round(float(bill_total_transport_energy_quote),2)
+                total += round(float(bill_total_asos_arim_quote),2)
+                total += round(float(bill_total_accisa_tax),2)
+                total -= round(float(self.coordinator.discount),2)*2
+                
+                total = total * float(self.coordinator.iva)
+                self._available = True
+                self._native_value = total
+                bill_total_iva = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+        elif self.tipo==BILL_TOTAL:  
+            try:
+                current_month = dt_util.now().date().month
+                
+                total = round(float(bill_total_energy_fix_quote),2)
+                total += round(float(bill_total_energy_energy_quote),2)
+                total += round(float(bill_total_transport_fix_quote),2)
+                total += round(float(bill_total_transport_power_quote),2)
+                total += round(float(bill_total_transport_energy_quote),2)
+                total += round(float(bill_total_asos_arim_quote),2)
+                total += round(float(bill_total_accisa_tax),2)
+                total += round(float(bill_total_iva),2)
+                total -= round(float(self.coordinator.discount),2)*2
+                if current_month!=11 and current_month!=12:
+                    total += round(float(self.coordinator.tv_tax),2)*2
+                self._available = True
+                self._native_value = total
+                self.async_write_ha_state()
+            except:
+                self._available = False
+                self.async_write_ha_state()                
+
+    async def async_update(self):
+        self.manage_update()
+        
+    def _handle_coordinator_update(self) -> None:
+        """Gestisce l'aggiornamento dei dati dal coordinator"""
+        self.manage_update()
+        
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData:
+        """Determina i dati da salvare per il ripristino successivo"""
+        return RestoredExtraData(dict(
+            native_value = self._native_value if self._available else None
+        ))
+    
+    async def async_added_to_hass(self) -> None:
+        """Entità aggiunta ad Home Assistant"""
+        await super().async_added_to_hass()
+
+        # Recupera lo stato precedente, se esiste        
+        if (old_data := await self.async_get_last_extra_data()) is not None:
+            if (old_native_value := old_data.as_dict().get('native_value')) is not None:
+                self._available = True
+                self._native_value = old_native_value
+
+        # async def _periodic_update(now):
+            # self.manage_update()
+
+        # async_track_time_interval(self.hass, _periodic_update, timedelta(seconds=3))
+        
+    @property
+    def should_poll(self) -> bool:
+        """Determina l'aggiornamento automatico"""
+        return True
+
+    @property
+    def available(self) -> bool:
+        """Determina se il valore è disponibile"""
+        return self._available
+
+    @property
+    def native_value(self) -> float:
+        """Valore corrente del sensore"""
+        return self._native_value
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Unita' di misura"""
         return f"{CURRENCY_EURO}"
             
     @property
@@ -376,25 +857,25 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
     def name(self) -> str:
         """Restituisce il nome del sensore"""
         if (self.tipo == BILL_KWH_PRICE):
-            return "Bolletta - Prezzo del KWh"
+            return "Prezzo del KWh"
         elif (self.tipo == BILL_ENERGY_FIX_QUOTE):
-            return "Bolletta - Spesa per l'energia - Quota fissa"
+            return "Spesa per l'energia - Quota fissa"
         elif (self.tipo == BILL_ENERGY_ENERGY_QUOTE):
-            return "Bolletta - Spesa per l'energia - Quota energia"
+            return "Spesa per l'energia - Quota energia"
         elif (self.tipo == BILL_TRANSPORT_FIX_QUOTE):
-            return "Bolletta - Spesa per il trasporto e contatore - Quota fissa"
+            return "Spesa per il trasporto e contatore - Quota fissa"
         elif (self.tipo == BILL_TRANSPORT_POWER_QUOTE):
-            return "Bolletta - Spesa per il trasporto e contatore - Quota potenza"
+            return "Spesa per il trasporto e contatore - Quota potenza"
         elif (self.tipo == BILL_TRANSPORT_ENERGY_QUOTE):
-            return "Bolletta - Spesa per il trasporto e contatore - Quota energia"
+            return "Spesa per il trasporto e contatore - Quota energia"
         elif (self.tipo == BILL_ASOS_ARIM_QUOTE):
-            return "Bolletta - Spesa per gli oneri di sistema"
+            return "Spesa per gli oneri di sistema"
         elif (self.tipo == BILL_ACCISA_TAX):
-            return "Bolletta - Imposta erariale di consumo - Accisa"
+            return "Imposta erariale di consumo - Accisa"
         elif (self.tipo == BILL_IVA):
-            return "Bolletta - Totale IVA"
+            return "Totale IVA"
         elif (self.tipo == BILL_TOTAL):
-            return "Bolletta - Totale Fattura"
+            return "Totale Fattura"
         else:
             return None
 
@@ -447,7 +928,7 @@ class PUNSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             case _:
                 self.entity_id = None
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -455,6 +936,16 @@ class PUNSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._available = False
         self._native_value = 0
 
+    @property
+    def device_info(self):
+        """Return device information for PUN parameters."""
+        return {
+            "identifiers": {(DOMAIN, "PUN")},
+            "name": "Prezzo Unico Nazionale (PUN)",
+            "manufacturer": "Gestore Mercati Energetici",
+            "model": "Dati PUN in Tempo Reale",
+        }
+        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -579,8 +1070,18 @@ class FasciaPUNSensorEntity(CoordinatorEntity, SensorEntity):
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_fascia_corrente")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
+    @property
+    def device_info(self):
+        """Return device information for PUN parameters."""
+        return {
+            "identifiers": {(DOMAIN, "PUN")},
+            "name": "Prezzo Unico Nazionale (PUN)",
+            "manufacturer": "Gestore Mercati Energetici",
+            "model": "Dati PUN in Tempo Reale",
+        }
+        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -657,7 +1158,7 @@ class PrezzoFasciaPUNSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_prezzo_fascia_corrente")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -666,6 +1167,16 @@ class PrezzoFasciaPUNSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity
         self._native_value = 0
         self._friendly_name = "Prezzo fascia corrente"
 
+    @property
+    def device_info(self):
+        """Return device information for PUN parameters."""
+        return {
+            "identifiers": {(DOMAIN, "PUN")},
+            "name": "Prezzo Unico Nazionale (PUN)",
+            "manufacturer": "Gestore Mercati Energetici",
+            "model": "Dati PUN in Tempo Reale",
+        }
+        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -762,7 +1273,7 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_prezzo_zonale")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -771,7 +1282,17 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._native_value: float = 0
         self._friendly_name: str = "Prezzo zonale"
         self._prezzi_zonali: dict[str, float | None] = {}
-
+        
+    @property
+    def device_info(self):
+        """Return device information for PUN parameters."""
+        return {
+            "identifiers": {(DOMAIN, "PUN")},
+            "name": "Prezzo Unico Nazionale (PUN)",
+            "manufacturer": "Gestore Mercati Energetici",
+            "model": "Dati PUN in Tempo Reale",
+        }
+        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -977,7 +1498,7 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_orario")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -987,6 +1508,16 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._friendly_name: str = "PUN orario"
         self._pun_orari: dict[str, float | None] = {}
 
+    @property
+    def device_info(self):
+        """Return device information for PUN parameters."""
+        return {
+            "identifiers": {(DOMAIN, "PUN")},
+            "name": "Prezzo Unico Nazionale (PUN)",
+            "manufacturer": "Gestore Mercati Energetici",
+            "model": "Dati PUN in Tempo Reale",
+        }
+        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 

@@ -14,19 +14,12 @@ BILL_IVA = 8
 BILL_TOTAL = 9
 BILL_KWH_PRICE = 10
 
-# Parametri configurabili da configuration.yaml
+# Parametri configurabili
 CONF_FIX_QUOTA_AGGR_MEASURE = "fix_quota_aggr_measure"
 CONF_MONTHLY_FEE = "monthly_fee"
 CONF_NW_LOSS_PERCENTAGE = "nw_loss_percentage"
 CONF_OTHER_FEE = "other_fee"
-CONF_FIX_QUOTA_TRANSPORT = "fix_quota_transport"
-CONF_QUOTA_POWER = "quota_power"
 CONF_POWER_IN_USE = "power_in_use"
-CONF_ENERGY_SC1 = "energy_sc1"
-CONF_ASOS_SC1 = "asos_sc1"
-CONF_ASOS_SC2 = "asos_sc2"
-CONF_ARIM_SC1 = "arim_sc1"
-CONF_ARIM_SC2 = "arim_sc2"
 CONF_ACCISA_TAX = "accisa_tax"
 CONF_IVA = "iva"
 CONF_DISCOUNT = "discount"
@@ -34,6 +27,19 @@ CONF_TV_TAX = "tv_tax"
 CONF_MONTHY_ENTITY_SENSOR = "monthly_entity_sensor"
 CONF_PUN_SENSOR = "pun_sensor"
 CONF_PUN_MP_SENSOR = "pun_mp_sensor"
+
+# Parametri di ARERA
+CONF_ENERGY_SC1 = "energy_sc1"
+CONF_ENERGY_SC1_MP = "energy_sc1_mp"
+CONF_FIX_QUOTA_TRANSPORT = "fix_quota_transport"
+CONF_FIX_QUOTA_TRANSPORT_MP = "fix_quota_transport_mp"
+CONF_QUOTA_POWER = "quota_power"
+CONF_QUOTA_POWER_MP = "quota_power_mp"
+CONF_ASOS_SC1 = "asos_sc1"
+CONF_ASOS_SC1_MP = "asos_sc1_mp"
+CONF_ARIM_SC1 = "arim_sc1"
+CONF_ARIM_SC1_MP = "arim_sc1_mp"
+
 
 # Tipi di sensore da creare
 PUN_FASCIA_MONO = 0
@@ -50,10 +56,10 @@ COORD_EVENT = "coordinator_event"
 EVENT_UPDATE_FASCIA = "event_update_fascia"
 EVENT_UPDATE_PUN = "event_update_pun"
 EVENT_UPDATE_PREZZO_ZONALE = "event_update_prezzo_zonale"
+EVENT_UPDATE_ARERA = "event_update_arera"
 
 # Parametri configurabili da configuration.yaml
 CONF_SCAN_HOUR = "scan_hour"
-CONF_ACTUAL_DATA_ONLY = "actual_data_only"
 CONF_ZONA = "zona"
 
 # Parametri interni
@@ -64,3 +70,12 @@ CONF_PUN_MODE = "pun_mode"
 CONF_FIXED_PUN_VALUE = "fixed_pun_value"
 PUN_MODE_CALCULATED = "calculated"
 PUN_MODE_FIXED = "fixed"
+
+# Abitazione
+CONF_HOUSE_TYPE = "house_type"
+RESIDENTIAL = "residential"
+NOT_RESIDENTIAL = "not_residential"
+HOUSE_TYPE_LABELS = {
+    RESIDENTIAL: "Abitazioni di residenza anagrafica",
+    NOT_RESIDENTIAL: "Abitazioni diverse dalla residenza anagrafica",
+}

@@ -1,134 +1,104 @@
 {
-  "config": {
-    "step": {
-      "step2": {
-        "title": "Bill Calculation (1/5)",
-        "description": "Energy cost",
-        "data": {
-          "fix_quota_aggr_measure": "Fixed fee - Measure aggregation (€/month)",
-          "monthly_fee": "Monthly contribution (€/month)",
-          "tariff_type": "Tariff type",
-          "nw_loss_percentage": "Network losses as a percentage (%)",
-          "other_fee": "Other charges - Dispatching (€/kWh)"
-        }
+   "config":{
+      "step":{
+         "step2":{
+            "title":"Bill Calculation (1/4)",
+            "description":"Electricity sales costs",
+            "data":{
+               "fix_quota_aggr_measure":"Fixed fee - Measurement aggregation (€/month)",
+               "monthly_fee":"Monthly contribution (€/month)",
+               "tariff_type":"Tariff type",
+               "other_fee":"Other charges - Dispatching (€/kWh)",
+               "pun_mode":"PUN usage mode"
+            }
+         },
+         "step3":{
+            "title":"Bill Calculation (2/4)",
+            "description":"Energy sensor and PUN calculation",
+            "data":{
+               "monthly_entity_sensor":"Select the sensor to be used for monthly consumption calculation",
+               "zona":"Geographical zone for zonal prices",
+               "scan_hour":"Download start hour (0-23)",
+               "fixed_pun_value":"Fixed PUN value",
+			   "house_type":"Type of dwelling"
+            }
+         },
+         "step4":{
+            "title":"Bill Calculation (3/4)",
+            "description":"Cost for the electricity network usage fee",
+            "data":{
+               "power_in_use":"Contracted power (kW)"
+            }
+         },
+         "step5":{
+            "title":"Bill Calculation (4/4)",
+            "description":"Discounts and TV fee",
+            "data":{
+               "discount":"Cashback discount (€/month)",
+               "tv_tax":"TV subscription fee for private use (€/month)"
+            }
+         }
       },
-      "step3": {
-        "title": "Bill Calculation (2/5)",
-        "description": "Cost for electricity transportation and meter management",
-        "data": {
-          "fix_quota_transport": "Fixed fee (€/month)",
-          "quota_power": "Power fee (€/kW/month)",
-          "power_in_use": "Contracted power (kW)",
-          "energy_sc1": "Energy quota Tier 1 (€/kWh)"
-        }
+      "error":{
+         "unknown":"Unknown error"
       },
-      "step4": {
-        "title": "Bill Calculation (3/5)",
-        "description": "Cost for system charges",
-        "data": {
-          "asos_sc1": "Variable Asos Tier 1 (€/kWh)",
-          "asos_sc2": "Variable Asos Tier 2 (€/kWh)",
-          "arim_sc1": "Variable Arim Tier 1 (€/kWh)",
-          "arim_sc2": "Variable Arim Tier 2 (€/kWh)"
-        }
-      },
-      "step5": {
-        "title": "Bill Calculation (4/5)",
-        "description": "Taxes, VAT, Discounts, and Subscription",
-        "data": {
-          "accisa_tax": "Excise tax (€/kWh)",
-          "iva": "VAT (%)",
-          "discount": "Light Cashback discount (€/month)",
-          "tv_tax": "TV subscription fee for private use (€/month)",
-		  "pun_mode": "PUN Mode"
-        }
-      },
-      "step6": {
-        "title": "Bill Calculation (5/5)",
-        "description": "Energy sensor and PUN calculation",
-        "data": {
-          "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
-          "pun_sensor": "Choose the sensor to be used for the PUN price",
-          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price",
-          "zona": "Geographical area for district prices",
-          "scan_hour": "Web download start hour (0-23)",
-          "actual_data_only": "Use only real data at month start",
-		  "fixed_pun_value": "Fixed PUN value"		  
-		  }
+      "abort":{
+         "already_configured":"Integration already configured."
       }
-    },
-    "error": {
-      "unknown": "Unknown error"
-    },
-    "abort": {
-      "already_configured": "Integration already configured."
-    }
-  },
-  "selector": {
-    "pun_mode": {
-      "options": {
-        "calculated": "Calculated by GSE",
-        "fixed": "Fixed"
+   },
+   "selector":{
+      "pun_mode":{
+         "options":{
+            "calculated":"Calculated by GSE",
+            "fixed":"Fixed"
+         },
+	  "house_type":{
+         "options":{
+            "residential":"Dwellings used as registered residence",
+            "not_residential":"Dwellings other than registered residence"
+         }
       }
-    }
-  },  
-  "options": {
-    "step": {
-      "step2o": {
-        "title": "Bill Calculation (1/5)",
-        "description": "Energy cost",
-        "data": {
-          "fix_quota_aggr_measure": "Fixed fee - Measure aggregation (€/month)",
-          "monthly_fee": "Monthly contribution (€/month)",
-          "tariff_type": "Tariff type",
-          "nw_loss_percentage": "Network losses as a percentage (%)",
-          "other_fee": "Other charges - Dispatching (€/kWh)"
-        }
-      },
-      "step3o": {
-        "title": "Bill Calculation (2/5)",
-        "description": "Cost for electricity transportation and meter management",
-        "data": {
-          "fix_quota_transport": "Fixed fee (€/month)",
-          "quota_power": "Power fee (€/kW/month)",
-          "power_in_use": "Contracted power (kW)",
-          "energy_sc1": "Energy quota Tier 1 (€/kWh)"
-        }
-      },
-      "step4o": {
-        "title": "Bill Calculation (3/5)",
-        "description": "Cost for system charges",
-        "data": {
-          "asos_sc1": "Variable Asos Tier 1 (€/kWh)",
-          "asos_sc2": "Variable Asos Tier 2 (€/kWh)",
-          "arim_sc1": "Variable Arim Tier 1 (€/kWh)",
-          "arim_sc2": "Variable Arim Tier 2 (€/kWh)"
-        }
-      },
-      "step5o": {
-        "title": "Bill Calculation (4/5)",
-        "description": "Taxes, VAT, Discounts, and Subscription",
-        "data": {
-          "accisa_tax": "Excise tax (€/kWh)",
-          "iva": "VAT (%)",
-          "discount": "Light Cashback discount (€/month)",
-          "tv_tax": "TV subscription fee for private use (€/month)",
-		  "pun_mode": "PUN Mode"
-        }
-      },
-      "step6o": {
-        "title": "Bill Calculation (5/5)",
-        "description": "Energy sensor and PUN calculation",
-        "data": {
-          "monthly_entity_sensor": "Choose the sensor to be used for monthly consumption calculation",
-          "pun_sensor": "Choose the sensor to be used for the PUN price",
-          "pun_mp_sensor": "Choose the sensor to be used for last month's PUN price",
-          "zona": "Geographical area for district prices",
-          "scan_hour": "Web download start hour (0-23)",
-          "actual_data_only": "Use only real data at month start",		  
-		  "fixed_pun_value": "Fixed PUN value"		
-        }
       }
-    }
-  }
+   },
+   "options":{
+      "step":{
+         "step2o":{
+            "title":"Bill Calculation (1/4)",
+            "description":"Electricity sales costs",
+            "data":{
+               "fix_quota_aggr_measure":"Fixed fee - Measurement aggregation (€/month)",
+               "monthly_fee":"Monthly contribution (€/month)",
+               "tariff_type":"Tariff type",
+               "other_fee":"Other charges - Dispatching (€/kWh)",
+               "pun_mode":"PUN usage mode"
+            }
+         },
+         "step3o":{
+            "title":"Bill Calculation (2/4)",
+            "description":"Energy sensor and PUN calculation",
+            "data":{
+               "monthly_entity_sensor":"Select the sensor to be used for monthly consumption calculation",
+               "zona":"Geographical zone for zonal prices",
+               "scan_hour":"Download start hour (0-23)",
+               "fixed_pun_value":"Fixed PUN value",
+			   "house_type":"Type of dwelling"
+            }
+         },
+         "step4o":{
+            "title":"Bill Calculation (3/4)",
+            "description":"Cost for the electricity network usage fee",
+            "data":{
+               "power_in_use":"Contracted power (kW)"
+            }
+         },
+         "step5o":{
+            "title":"Bill Calculation (4/4)",
+            "description":"Discounts and TV fee",
+            "data":{
+               "discount":"Cashback discount (€/month)",
+               "tv_tax":"TV subscription fee for private use (€/month)"
+            }
+         }
+      }
+   }
 }
