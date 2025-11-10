@@ -20,7 +20,10 @@ class PunData:
         self.zona: Zona | None = None
         self.prezzi_zonali: dict[str, float | None] = {}
         self.pun_orari: dict[str, float | None] = {}
-
+        # Prezzi zonali e PUN a 15 minuti
+        self.prezzi_zonali_15min: dict[str, float | None] = {}
+        self.pun_15min: dict[str, float | None] = {}
+        
 class PunDataMP:
     """Classe che contiene i valori del PUN orario per ciascuna fascia."""
 
@@ -38,6 +41,9 @@ class PunDataMP:
         self.zona: Zona | None = None
         self.prezzi_zonali: dict[str, float | None] = {}
         self.pun_orari: dict[str, float | None] = {}
+        # Prezzi zonali e PUN a 15 minuti
+        self.prezzi_zonali_15min: dict[str, float | None] = {}
+        self.pun_15min: dict[str, float | None] = {}
         
 class Fascia(Enum):
     """Enumerazione con i tipi di fascia oraria."""
