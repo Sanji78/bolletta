@@ -54,10 +54,22 @@ from .const import (
 )
 
 from awesomeversion.awesomeversion import AwesomeVersion
-from homeassistant.const import __version__ as HA_VERSION
+from homeassistant.const import (
+    CURRENCY_EURO,
+    MATCH_ALL,
+    UnitOfEnergy,
+    __version__ as HA_VERSION,
+)
 from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, __version__ as HA_VERSION
 from .interfaces import Fascia, PunValues, PunValuesMP
-from .utils import datetime_to_packed_string, get_next_date
+from .utils import (
+    add_timedelta_via_utc,
+    get_datetime_from_ordinal_hour,
+    get_datetime_from_periodo_15min,
+    get_ordinal_hour,
+    get_periodo_15min,
+    get_total_hours,
+)
 
 ATTR_ROUNDED_DECIMALS = "rounded_decimals"
 bill_total_energy_fix_quote = 0
@@ -1260,20 +1272,25 @@ class PrezzoFasciaPUNSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity
         """Restituisce il nome del sensore."""
         return self._friendly_name
 
+
+
 class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
     """Sensore del prezzo zonale aggiornato ogni ora."""
+
+    # Non memorizza gli attributi nel recoder
+    _unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(self, coordinator: PUNDataUpdateCoordinator) -> None:
         """Inizializza il sensore."""
         super().__init__(coordinator)
 
         # Inizializza coordinator e tipo
-        self.coordinator = coordinator
+        self.coordinator: PUNDataUpdateCoordinator = coordinator
 
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_prezzo_zonale")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = False
+        self._attr_has_entity_name = True
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -1282,17 +1299,7 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._native_value: float = 0
         self._friendly_name: str = "Prezzo zonale"
         self._prezzi_zonali: dict[str, float | None] = {}
-        
-    @property
-    def device_info(self):
-        """Return device information for PUN parameters."""
-        return {
-            "identifiers": {(DOMAIN, "PUN")},
-            "name": "Prezzo Unico Nazionale (PUN)",
-            "manufacturer": "Gestore Mercati Energetici",
-            "model": "Dati PUN in Tempo Reale",
-        }
-        
+
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -1325,14 +1332,16 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         if coordinator_event in (EVENT_UPDATE_PUN, EVENT_UPDATE_PREZZO_ZONALE):
             if self.coordinator.pun_data.zona is not None:
                 # Controlla se il prezzo orario esiste per l'ora corrente
-                if (
-                    datetime_to_packed_string(self.coordinator.orario_prezzo)
-                    in self._prezzi_zonali
-                ):
+                _LOGGER.debug(
+                    "Aggiornamento data prezzo zonale: %s (XML: %s)",
+                    self.coordinator.orario_prezzo,
+                    get_ordinal_hour(self.coordinator.orario_prezzo),
+                )
+                if str(self.coordinator.orario_prezzo) in self._prezzi_zonali:
                     # Aggiorna il valore al prezzo orario
                     if (
                         valore := self._prezzi_zonali[
-                            datetime_to_packed_string(self.coordinator.orario_prezzo)
+                            str(self.coordinator.orario_prezzo)
                         ]
                     ) is not None:
                         self._native_value = valore
@@ -1405,14 +1414,11 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 self._prezzi_zonali = old_prezzi_zonali
 
                 # Controlla se il prezzo orario esiste per l'ora corrente
-                if (
-                    datetime_to_packed_string(self.coordinator.orario_prezzo)
-                    in self._prezzi_zonali
-                ):
+                if str(self.coordinator.orario_prezzo) in self._prezzi_zonali:
                     # Aggiorna il valore al prezzo orario
                     if (
                         valore := self._prezzi_zonali[
-                            datetime_to_packed_string(self.coordinator.orario_prezzo)
+                            str(self.coordinator.orario_prezzo)
                         ]
                     ) is not None:
                         self._native_value = valore
@@ -1463,42 +1469,47 @@ class PrezzoZonaleSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
 
         # Aggiunge i prezzi orari negli attributi, ora per ora
         if self.coordinator.pun_data.zona is not None:
-            for h in range(24):
-                # Prezzi di oggi
-                data_oggi = get_next_date(
-                    dataora=self.coordinator.orario_prezzo, ora=h, offset=0
+            # Prezzi di oggi
+            max_ore_oggi: int = get_total_hours(self.coordinator.orario_prezzo)
+            for h in range(max_ore_oggi):
+                data_ora_prezzo = get_datetime_from_ordinal_hour(
+                    self.coordinator.orario_prezzo, (1 + h)
                 )
-                attributes[ATTR_PREFIX_PREZZO_OGGI + f"{h:02d}"] = (
-                    self._prezzi_zonali.get(datetime_to_packed_string(data_oggi))
+                attributes[str(data_ora_prezzo)] = self._prezzi_zonali.get(
+                    str(data_ora_prezzo)
                 )
 
-            for h in range(24):
-                # Prezzi di domani
-                data_domani = get_next_date(
-                    dataora=self.coordinator.orario_prezzo, ora=h, offset=1
-                )
-                attributes[ATTR_PREFIX_PREZZO_DOMANI + f"{h:02d}"] = (
-                    self._prezzi_zonali.get(datetime_to_packed_string(data_domani))
+            # Prezzi di domani
+            domani = add_timedelta_via_utc(
+                dt=self.coordinator.orario_prezzo, full_days=1
+            )
+            max_ore_domani: int = get_total_hours(domani)
+            for h in range(max_ore_domani):
+                data_ora_prezzo = get_datetime_from_ordinal_hour(domani, (1 + h))
+                attributes[str(data_ora_prezzo)] = self._prezzi_zonali.get(
+                    str(data_ora_prezzo)
                 )
 
         # Restituisce gli attributi
         return attributes
 
 class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
-
     """Sensore del prezzo PUN aggiornato ogni ora."""
+
+    # Non memorizza gli attributi nel recoder
+    _unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(self, coordinator: PUNDataUpdateCoordinator) -> None:
         """Inizializza il sensore."""
         super().__init__(coordinator)
 
         # Inizializza coordinator e tipo
-        self.coordinator = coordinator
+        self.coordinator: PUNDataUpdateCoordinator = coordinator
 
         # ID univoco sensore basato su un nome fisso
         self.entity_id = ENTITY_ID_FORMAT.format("pun_orario")
         self._attr_unique_id = self.entity_id
-        self._attr_has_entity_name = False
+        self._attr_has_entity_name = True
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -1508,16 +1519,6 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._friendly_name: str = "PUN orario"
         self._pun_orari: dict[str, float | None] = {}
 
-    @property
-    def device_info(self):
-        """Return device information for PUN parameters."""
-        return {
-            "identifiers": {(DOMAIN, "PUN")},
-            "name": "Prezzo Unico Nazionale (PUN)",
-            "manufacturer": "Gestore Mercati Energetici",
-            "model": "Dati PUN in Tempo Reale",
-        }
-        
     def _handle_coordinator_update(self) -> None:
         """Gestisce l'aggiornamento dei dati dal coordinator."""
 
@@ -1537,15 +1538,15 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         # Cambiato l'orario del prezzo
         if coordinator_event in (EVENT_UPDATE_PUN, EVENT_UPDATE_PREZZO_ZONALE):
             # Controlla se il PUN orario esiste per l'ora corrente
-            if (
-                datetime_to_packed_string(self.coordinator.orario_prezzo)
-                in self._pun_orari
-            ):
+            _LOGGER.debug(
+                "Aggiornamento data PUN orario: %s (XML: %s)",
+                self.coordinator.orario_prezzo,
+                get_ordinal_hour(self.coordinator.orario_prezzo),
+            )
+            if str(self.coordinator.orario_prezzo) in self._pun_orari:
                 # Aggiorna il valore al prezzo orario
                 if (
-                    valore := self._pun_orari[
-                        datetime_to_packed_string(self.coordinator.orario_prezzo)
-                    ]
+                    valore := self._pun_orari[str(self.coordinator.orario_prezzo)]
                 ) is not None:
                     self._native_value = valore
                     self._available = True
@@ -1584,15 +1585,10 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 self._pun_orari = old_pun_orari
 
                 # Controlla se il prezzo orario esiste per l'ora corrente
-                if (
-                    datetime_to_packed_string(self.coordinator.orario_prezzo)
-                    in self._pun_orari
-                ):
+                if str(self.coordinator.orario_prezzo) in self._pun_orari:
                     # Aggiorna il valore al prezzo orario
                     if (
-                        valore := self._pun_orari[
-                            datetime_to_packed_string(self.coordinator.orario_prezzo)
-                        ]
+                        valore := self._pun_orari[str(self.coordinator.orario_prezzo)]
                     ) is not None:
                         self._native_value = valore
                         self._available = True
@@ -1643,23 +1639,20 @@ class PUNOrarioSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
         attributes: dict[str, Any] = {}
 
         # Aggiunge i prezzi orari negli attributi, ora per ora
-        for h in range(24):
-            # Prezzi di oggi
-            data_oggi = get_next_date(
-                dataora=self.coordinator.orario_prezzo, ora=h, offset=0
+        # Prezzi di oggi
+        max_ore_oggi: int = get_total_hours(self.coordinator.orario_prezzo)
+        for h in range(max_ore_oggi):
+            data_ora_prezzo = get_datetime_from_ordinal_hour(
+                self.coordinator.orario_prezzo, (1 + h)
             )
-            attributes[ATTR_PREFIX_PREZZO_OGGI + f"{h:02d}"] = self._pun_orari.get(
-                datetime_to_packed_string(data_oggi)
-            )
+            attributes[str(data_ora_prezzo)] = self._pun_orari.get(str(data_ora_prezzo))
 
-        for h in range(24):
-            # Prezzi di domani
-            data_domani = get_next_date(
-                dataora=self.coordinator.orario_prezzo, ora=h, offset=1
-            )
-            attributes[ATTR_PREFIX_PREZZO_DOMANI + f"{h:02d}"] = self._pun_orari.get(
-                datetime_to_packed_string(data_domani)
-            )
+        # Prezzi di domani
+        domani = add_timedelta_via_utc(dt=self.coordinator.orario_prezzo, full_days=1)
+        max_ore_domani: int = get_total_hours(domani)
+        for h in range(max_ore_domani):
+            data_ora_prezzo = get_datetime_from_ordinal_hour(domani, (1 + h))
+            attributes[str(data_ora_prezzo)] = self._pun_orari.get(str(data_ora_prezzo))
 
         # Restituisce gli attributi
         return attributes
