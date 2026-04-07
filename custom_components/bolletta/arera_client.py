@@ -216,7 +216,9 @@ class AreraClient:
                     _LOGGER.debug("ARIM trovato in r%d c%d -> %s", asos_arim_value_row, c, v)
 
             # detect "servizi di rete" even if it contains newlines or extra spaces
-            if 'tariffa' in header_text and 'rete' in header_text:
+            # Match both old ("Trasporto e gestione del contatore") and new
+            # ("Tariffa per l'uso della rete elettrica di rete") ARERA header naming
+            if 'trasporto' in header_text or ('tariffa' in header_text and 'rete' in header_text):
                 servizi_col = c
                 _LOGGER.debug("Intestazione 'Servizi di rete' trovata in c%d (testo intestazione: %s)", c, header_text)
 
