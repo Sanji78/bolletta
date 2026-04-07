@@ -798,7 +798,9 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 total += round(float(bill_total_iva),2)
                 total -= round(float(self.coordinator.discount),2)*2
                 if current_month!=11 and current_month!=12:
-                    total += round(float(self.coordinator.tv_tax),2)*2
+                    total += round(float(self.coordinator.tv_tax),2)
+                    if include_last_period:
+                        total += round(float(self.coordinator.tv_tax),2)
                 self._available = True
                 self._native_value = total
                 self.async_write_ha_state()
