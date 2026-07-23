@@ -625,11 +625,11 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 if self.coordinator.pun_mode == PUN_MODE_FIXED:
                     pun_value = self.coordinator.fixed_pun_value
                     total = round(float(pun_value) , 2)
-                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) , 2)
+                    total += round(float(self.coordinator.nw_loss_percentage) *  float(pun_value) , 2)
                     total += round(float(self.coordinator.other_fee) , 2)
                 else:
                     total = round(float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
-                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
+                    total += round(float(self.coordinator.nw_loss_percentage) *  float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
                     total += round(float(self.coordinator.other_fee) , 2)
                             
                 total += round(self.coordinator.energy_sc1 , 2)
