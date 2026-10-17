@@ -576,8 +576,13 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
 
         # Inizializza le proprietà comuni
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_device_class = SensorDeviceClass.MONETARY
-        self._attr_suggested_display_precision = 2
+        if self.tipo == BILL_KWH_PRICE:
+            # €/kWh non è una valuta: la device class MONETARY la rifiuterebbe
+            self._attr_device_class = None
+            self._attr_suggested_display_precision = 6
+        else:
+            self._attr_device_class = SensorDeviceClass.MONETARY
+            self._attr_suggested_display_precision = 2
         self._available = False
         self._native_value = 0
 
@@ -858,8 +863,10 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
     @property
     def native_unit_of_measurement(self) -> str:
         """Unita' di misura"""
+        if self.tipo == BILL_KWH_PRICE:
+            return f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
         return f"{CURRENCY_EURO}"
-            
+
     @property
     def state(self) -> str:
         return fmt_float(self.native_value)
