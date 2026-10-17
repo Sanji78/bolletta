@@ -90,7 +90,9 @@ async def async_unload_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     # Scarica i sensori (disabilitando di conseguenza il coordinator)
     unload_ok = await hass.config_entries.async_unload_platforms(config, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(config.entry_id)
+        coordinator = hass.data[DOMAIN].pop(config.entry_id)
+        # Annulla i timer, altrimenti continuano a girare dopo un ricaricamento
+        coordinator.clean_all_tokens()
 
     return unload_ok
 
@@ -129,6 +131,8 @@ async def update_listener(hass: HomeAssistant, config: ConfigEntry) -> None:
     new_power_in_use = config.options.get(CONF_POWER_IN_USE, coordinator.power_in_use)
     if new_power_in_use != coordinator.power_in_use:
         coordinator.power_in_use = new_power_in_use
+        # L'accisa dipende dalla potenza impegnata (fino/oltre 3 kW)
+        hass.async_create_task(coordinator.update_portale_offerte())
 
     new_discount = config.options.get(CONF_DISCOUNT, coordinator.discount)
     if new_discount != coordinator.discount:

@@ -622,20 +622,22 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
 
         if self.tipo==BILL_KWH_PRICE:  
             try:
+                # Prezzo in €/kWh: le componenti valgono spesso meno di 1 centesimo,
+                # quindi si arrotonda solo il totale (non le singole voci a 2 decimali).
+                # nw_loss_percentage (lambda di ilportaleofferte) è già una frazione (es. 0.10).
                 if self.coordinator.pun_mode == PUN_MODE_FIXED:
-                    pun_value = self.coordinator.fixed_pun_value
-                    total = round(float(pun_value) , 2)
-                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(pun_value) , 2)
-                    total += round(float(self.coordinator.other_fee) , 2)
+                    pun_value = float(self.coordinator.fixed_pun_value)
                 else:
-                    total = round(float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
-                    total += round((float(self.coordinator.nw_loss_percentage)/100) *  float(self.hass.states.get('sensor.pun_mono_orario').state) , 2)
-                    total += round(float(self.coordinator.other_fee) , 2)
-                            
-                total += round(self.coordinator.energy_sc1 , 2)
-                total += round(self.coordinator.asos_sc1 , 2)
-                total += round(self.coordinator.arim_sc1 , 2)
-                total += round(self.coordinator.accisa_tax , 2)
+                    pun_value = float(self.hass.states.get('sensor.pun_mono_orario').state)
+                total = pun_value
+                total += float(self.coordinator.nw_loss_percentage) * pun_value
+                total += float(self.coordinator.other_fee)
+
+                total += self.coordinator.energy_sc1
+                total += self.coordinator.asos_sc1
+                total += self.coordinator.arim_sc1
+                total += self.coordinator.accisa_tax
+                total = round(total, 6)
 
                 self._available = True
                 self._native_value = total
@@ -757,7 +759,7 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 total = 0
                 total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * self.coordinator.accisa_tax,2)
                 if include_last_period:
-                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.accisa_tax,2)
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * self.coordinator.accisa_tax_mp,2)
                 self._available = True
                 self._native_value = total
                 bill_total_accisa_tax = total

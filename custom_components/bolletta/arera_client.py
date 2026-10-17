@@ -67,20 +67,22 @@ class AreraClient:
 
         _LOGGER.info("ARERA: scarico il file excel, ricerco i mesi: %s", target_months)
 
-        # Scarico e parso il file **una sola volta**
-        filename = ARERA_FILENAME_TEMPLATE.format(year=current_year)
-        url = f"{ARERA_BASE_URL}{filename}"
-        _LOGGER.info("Scarico i dati ARERA da: %s", url)
+        # ARERA pubblica un file per anno: a febbraio il mese-2 (dicembre)
+        # si trova nel file dell'anno precedente, quindi scarico un file per ogni anno
+        for year in sorted({y for y, _ in target_months}, reverse=True):
+            filename = ARERA_FILENAME_TEMPLATE.format(year=year)
+            url = f"{ARERA_BASE_URL}{filename}"
+            _LOGGER.info("Scarico i dati ARERA da: %s", url)
 
-        async with self.session.get(url) as response:
-            if response.status != 200:
-                raise RuntimeError(f"HTTP {response.status} nello scarico dei dati ARERA")
-            content = await response.read()
+            async with self.session.get(url) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"HTTP {response.status} nello scarico dei dati ARERA")
+                content = await response.read()
 
-        # Parsing sincronamente nel thread executor
-        await self.hass.async_add_executor_job(
-            self._parse_excel_data, content, target_months, house_type
-        )
+            # Parsing sincronamente nel thread executor
+            await self.hass.async_add_executor_job(
+                self._parse_excel_data, content, target_months, house_type
+            )
 
         # Costruisco il risultato con le chiavi 'mp' (mese-1) e 'mpp' (mese-2)
         mp_key = f"{current_year}_{current_month:02d}"
