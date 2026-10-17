@@ -238,10 +238,13 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.update_scan_minutes_from_config(hass=hass, config=config, new_minute=False)
 
         # Inizializza i valori di default
-        self.web_retries = WEB_RETRIES_MINUTES
-        self.web_retries_arera = WEB_RETRIES_MINUTES
-        self.web_retries_portale = WEB_RETRIES_MINUTES
+        # Ogni contatore usa una copia: pop(0) non deve consumare la costante condivisa
+        self.web_retries = list(WEB_RETRIES_MINUTES)
+        self.web_retries_arera = list(WEB_RETRIES_MINUTES)
+        self.web_retries_portale = list(WEB_RETRIES_MINUTES)
         self.schedule_token = None
+        self.fascia_schedule_token = None
+        self.prezzo_zonale_schedule_token = None
         self.pun_values: PunValues = PunValues()
         self.pun_values_mp: PunValuesMP = PunValuesMP()        
         self.fascia_corrente: Fascia | None = None
@@ -262,7 +265,25 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         if self.arera_schedule_token is not None:
             self.arera_schedule_token()
             self.arera_schedule_token = None
-            
+
+    def clean_tokens_portale(self):
+        """Annulla eventuali schedulazioni attive."""
+        if self.portale_schedule_token is not None:
+            self.portale_schedule_token()
+            self.portale_schedule_token = None
+
+    def clean_all_tokens(self):
+        """Annulla tutte le schedulazioni (alla rimozione dell'integrazione)."""
+        self.clean_tokens()
+        self.clean_tokens_arera()
+        self.clean_tokens_portale()
+        if self.fascia_schedule_token is not None:
+            self.fascia_schedule_token()
+            self.fascia_schedule_token = None
+        if self.prezzo_zonale_schedule_token is not None:
+            self.prezzo_zonale_schedule_token()
+            self.prezzo_zonale_schedule_token = None
+
     def update_scan_minutes_from_config(
         self, hass: HomeAssistant, config: ConfigEntry, new_minute: bool = False
     ):
@@ -350,10 +371,12 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             self.async_set_updated_data({COORD_EVENT: EVENT_UPDATE_ARERA})
             _LOGGER.info("Parametri PortaleOfferte aggiornati con successo...")
             # reset retry schedule
-            self.web_retries_portale = WEB_RETRIES_MINUTES
+            self.web_retries_portale = list(WEB_RETRIES_MINUTES)
 
         except Exception as e:
             _LOGGER.error("Errore aggiornamento PortaleOfferte: %s", e, exc_info=True)
+            # Annulla eventuali schedulazioni attive prima di pianificarne una nuova
+            self.clean_tokens_portale()
             # schedule retry similarly to arera logic
             if self.web_retries_portale:
                 retry_in_minutes = self.web_retries_portale.pop(0)
@@ -443,7 +466,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Se non ci sono eccezioni, ha avuto successo
             # Ricarica i tentativi per la prossima esecuzione
-            self.web_retries_arera = WEB_RETRIES_MINUTES
+            self.web_retries_arera = list(WEB_RETRIES_MINUTES)
             
         else:
             _LOGGER.error("Non sono riuscito ad aggiornare i parametri ARERA...")
@@ -460,7 +483,6 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
                     "Errore durante l'aggiornamento dei dati ARERA, nuovo tentativo tra %s minut%s.",
                     retry_in_minutes_arera,
                     "o" if retry_in_minutes_arera == 1 else "i",
-                    exc_info="",
                 )
                 self.arera_schedule_token = async_call_later(
                     self.hass, timedelta(minutes=retry_in_minutes_arera), self.update_arera_tariffs
@@ -468,8 +490,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
             else:
                 # Tentativi esauriti, passa al giorno dopo
                 _LOGGER.error(
-                    "Errore durante l'aggiornamento dei dati ARERA, tentativi esauriti.",
-                    exc_info=e,
+                    "Errore durante l'aggiornamento dei dati ARERA, tentativi esauriti."
                 )
                 next_update_arera = get_next_date(
                     dataora=dt_util.now(time_zone=tz_pun),
@@ -715,7 +736,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.async_set_updated_data({COORD_EVENT: EVENT_UPDATE_FASCIA})
 
         # Schedula la prossima esecuzione
-        async_track_point_in_time(
+        self.fascia_schedule_token = async_track_point_in_time(
             self.hass, self.update_fascia, self.prossimo_cambio_fascia
         )
 
@@ -729,7 +750,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Se non ci sono eccezioni, ha avuto successo
             # Ricarica i tentativi per la prossima esecuzione
-            self.web_retries = WEB_RETRIES_MINUTES
+            self.web_retries = list(WEB_RETRIES_MINUTES)
 
         # Errore nel fetch dei dati se la response non e' 200
         # pylint: disable=broad-exception-caught
@@ -809,6 +830,6 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         next_update_prezzo_zonale = (
             dt_util.now(time_zone=tz_pun) + timedelta(hours=1)
         ).replace(minute=0, second=0, microsecond=0)
-        async_track_point_in_time(
+        self.prezzo_zonale_schedule_token = async_track_point_in_time(
             self.hass, self.update_prezzo_zonale, next_update_prezzo_zonale
         )
