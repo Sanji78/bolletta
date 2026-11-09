@@ -39,6 +39,12 @@ from .const import (
     CONF_MONTHY_ENTITY_SENSOR,
     CONF_PUN_MODE,
     CONF_FIXED_PUN_VALUE,
+    CONF_FIXED_PRICE_F1,
+    CONF_FIXED_PRICE_F2,
+    CONF_FIXED_PRICE_F3,
+    CONF_ENERGY_SENSOR_F1,
+    CONF_ENERGY_SENSOR_F2,
+    CONF_ENERGY_SENSOR_F3,
     CONF_HOUSE_TYPE
 )
 
@@ -127,6 +133,30 @@ async def update_listener(hass: HomeAssistant, config: ConfigEntry) -> None:
     new_fixed_pun = config.options.get(CONF_FIXED_PUN_VALUE, coordinator.fixed_pun_value)
     if new_fixed_pun != coordinator.fixed_pun_value:
         coordinator.fixed_pun_value = new_fixed_pun
+
+    new_price_f1 = config.options.get(CONF_FIXED_PRICE_F1, coordinator.fixed_price_f1)
+    if new_price_f1 != coordinator.fixed_price_f1:
+        coordinator.fixed_price_f1 = new_price_f1
+
+    new_price_f2 = config.options.get(CONF_FIXED_PRICE_F2, coordinator.fixed_price_f2)
+    if new_price_f2 != coordinator.fixed_price_f2:
+        coordinator.fixed_price_f2 = new_price_f2
+
+    new_price_f3 = config.options.get(CONF_FIXED_PRICE_F3, coordinator.fixed_price_f3)
+    if new_price_f3 != coordinator.fixed_price_f3:
+        coordinator.fixed_price_f3 = new_price_f3
+
+    new_energy_f1 = config.options.get(CONF_ENERGY_SENSOR_F1, coordinator.energy_sensor_f1)
+    if new_energy_f1 != coordinator.energy_sensor_f1:
+        coordinator.energy_sensor_f1 = new_energy_f1
+
+    new_energy_f2 = config.options.get(CONF_ENERGY_SENSOR_F2, coordinator.energy_sensor_f2)
+    if new_energy_f2 != coordinator.energy_sensor_f2:
+        coordinator.energy_sensor_f2 = new_energy_f2
+
+    new_energy_f3 = config.options.get(CONF_ENERGY_SENSOR_F3, coordinator.energy_sensor_f3)
+    if new_energy_f3 != coordinator.energy_sensor_f3:
+        coordinator.energy_sensor_f3 = new_energy_f3
 
     new_power_in_use = config.options.get(CONF_POWER_IN_USE, coordinator.power_in_use)
     if new_power_in_use != coordinator.power_in_use:
