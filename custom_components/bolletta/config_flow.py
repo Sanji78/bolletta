@@ -23,6 +23,13 @@ from .const import (
     CONF_FIXED_PUN_VALUE,
     PUN_MODE_CALCULATED,
     PUN_MODE_FIXED,
+    PUN_MODE_FIXED_BANDS,
+    CONF_FIXED_PRICE_F1,
+    CONF_FIXED_PRICE_F2,
+    CONF_FIXED_PRICE_F3,
+    CONF_ENERGY_SENSOR_F1,
+    CONF_ENERGY_SENSOR_F2,
+    CONF_ENERGY_SENSOR_F3,
     CONF_HOUSE_TYPE,
     RESIDENTIAL,
     NOT_RESIDENTIAL
@@ -41,6 +48,7 @@ pun_mode_selector_config = selector.SelectSelectorConfig(
     options=[
         selector.SelectOptionDict(value=PUN_MODE_CALCULATED, label="calculated"),
         selector.SelectOptionDict(value=PUN_MODE_FIXED, label="fixed"),
+        selector.SelectOptionDict(value=PUN_MODE_FIXED_BANDS, label="fixed_bands"),
     ],
     mode=selector.SelectSelectorMode.DROPDOWN,
     translation_key="pun_mode",
@@ -53,6 +61,12 @@ house_type_selector_config = selector.SelectSelectorConfig(
     mode=selector.SelectSelectorMode.DROPDOWN,
     translation_key="house_type",
 )
+energy_sensor_selector = selector.selector({
+    "entity": {
+        "multiple": "false",
+        "filter": [{"domain": "sensor", "device_class": "energy"}],
+    }
+})
 if AwesomeVersion(HA_VERSION) >= AwesomeVersion("2023.9.0"):
     selector_config["sort"] = True
     
@@ -77,7 +91,7 @@ class PUNOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_FIX_QUOTA_AGGR_MEASURE, default=self._entry.options.get(CONF_FIX_QUOTA_AGGR_MEASURE, self._entry.data[CONF_FIX_QUOTA_AGGR_MEASURE])) : cv.positive_float,
             vol.Required(CONF_MONTHLY_FEE, default=self._entry.options.get(CONF_MONTHLY_FEE, self._entry.data[CONF_MONTHLY_FEE])) : cv.positive_float,
             vol.Required(CONF_PUN_MODE, default=pun_mode): selector.SelectSelector(pun_mode_selector_config),
-            vol.Required(CONF_OTHER_FEE, default=self._entry.options.get(CONF_OTHER_FEE, self._entry.data[CONF_OTHER_FEE])) : cv.positive_float,
+            # Dispacciamento: ora da ARERA (CDISPD), parametro manuale rimosso
         }
 
         # Mostra la schermata di configurazione, con gli eventuali errori
@@ -124,6 +138,30 @@ class PUNOptionsFlow(config_entries.OptionsFlow):
                     }),
                 vol.Required(CONF_FIXED_PUN_VALUE, default=self.data.get(CONF_FIXED_PUN_VALUE, opt.get(CONF_FIXED_PUN_VALUE, dat.get(CONF_FIXED_PUN_VALUE, 0.20)))):
                     cv.positive_float,
+            }
+
+        elif pun_mode == PUN_MODE_FIXED_BANDS:
+            data_schema = {
+                vol.Required(CONF_HOUSE_TYPE, default=house_type): selector.SelectSelector(house_type_selector_config),
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR, opt.get(CONF_MONTHY_ENTITY_SENSOR, dat[CONF_MONTHY_ENTITY_SENSOR]))):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_FIXED_PRICE_F1, default=self.data.get(CONF_FIXED_PRICE_F1, opt.get(CONF_FIXED_PRICE_F1, dat.get(CONF_FIXED_PRICE_F1, 0.20)))):
+                    cv.positive_float,
+                vol.Required(CONF_FIXED_PRICE_F2, default=self.data.get(CONF_FIXED_PRICE_F2, opt.get(CONF_FIXED_PRICE_F2, dat.get(CONF_FIXED_PRICE_F2, 0.20)))):
+                    cv.positive_float,
+                vol.Required(CONF_FIXED_PRICE_F3, default=self.data.get(CONF_FIXED_PRICE_F3, opt.get(CONF_FIXED_PRICE_F3, dat.get(CONF_FIXED_PRICE_F3, 0.20)))):
+                    cv.positive_float,
+                vol.Required(CONF_ENERGY_SENSOR_F1, default=self.data.get(CONF_ENERGY_SENSOR_F1, opt.get(CONF_ENERGY_SENSOR_F1, dat.get(CONF_ENERGY_SENSOR_F1)))):
+                    energy_sensor_selector,
+                vol.Required(CONF_ENERGY_SENSOR_F2, default=self.data.get(CONF_ENERGY_SENSOR_F2, opt.get(CONF_ENERGY_SENSOR_F2, dat.get(CONF_ENERGY_SENSOR_F2)))):
+                    energy_sensor_selector,
+                vol.Required(CONF_ENERGY_SENSOR_F3, default=self.data.get(CONF_ENERGY_SENSOR_F3, opt.get(CONF_ENERGY_SENSOR_F3, dat.get(CONF_ENERGY_SENSOR_F3)))):
+                    energy_sensor_selector,
             }
 
         return self.async_show_form(
@@ -192,7 +230,7 @@ class PUNConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_FIX_QUOTA_AGGR_MEASURE, default=0.007000) : cv.positive_float,
             vol.Required(CONF_MONTHLY_FEE, default=12.000000) : cv.positive_float,
             vol.Required(CONF_PUN_MODE, default=PUN_MODE_CALCULATED): selector.SelectSelector(pun_mode_selector_config),        
-            vol.Required(CONF_OTHER_FEE, default=0.023063) : cv.positive_float,
+            # Dispacciamento: ora da ARERA (CDISPD), parametro manuale rimosso
         }
         
         # Mostra la schermata di configurazione, con gli eventuali errori
@@ -236,6 +274,30 @@ class PUNConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }),
                 vol.Required(CONF_FIXED_PUN_VALUE, default=self.data.get(CONF_FIXED_PUN_VALUE, 0.20)):
                     cv.positive_float,
+            }
+
+        elif pun_mode == PUN_MODE_FIXED_BANDS:
+            data_schema = {
+                vol.Required(CONF_HOUSE_TYPE, default=house_type): selector.SelectSelector(house_type_selector_config),
+                vol.Required(CONF_MONTHY_ENTITY_SENSOR, default=self.data.get(CONF_MONTHY_ENTITY_SENSOR)):
+                    selector.selector({
+                        "entity": {
+                            "multiple": "false",
+                            "filter": [{"domain": "sensor", "device_class": "energy"}],
+                        }
+                    }),
+                vol.Required(CONF_FIXED_PRICE_F1, default=self.data.get(CONF_FIXED_PRICE_F1, 0.20)):
+                    cv.positive_float,
+                vol.Required(CONF_FIXED_PRICE_F2, default=self.data.get(CONF_FIXED_PRICE_F2, 0.20)):
+                    cv.positive_float,
+                vol.Required(CONF_FIXED_PRICE_F3, default=self.data.get(CONF_FIXED_PRICE_F3, 0.20)):
+                    cv.positive_float,
+                vol.Required(CONF_ENERGY_SENSOR_F1, default=self.data.get(CONF_ENERGY_SENSOR_F1)):
+                    energy_sensor_selector,
+                vol.Required(CONF_ENERGY_SENSOR_F2, default=self.data.get(CONF_ENERGY_SENSOR_F2)):
+                    energy_sensor_selector,
+                vol.Required(CONF_ENERGY_SENSOR_F3, default=self.data.get(CONF_ENERGY_SENSOR_F3)):
+                    energy_sensor_selector,
             }
 
         return self.async_show_form(
