@@ -40,6 +40,12 @@ from .const import (
     CONF_PUN_MODE,
     PUN_MODE_CALCULATED,
     CONF_FIXED_PUN_VALUE,
+    CONF_FIXED_PRICE_F1,
+    CONF_FIXED_PRICE_F2,
+    CONF_FIXED_PRICE_F3,
+    CONF_ENERGY_SENSOR_F1,
+    CONF_ENERGY_SENSOR_F2,
+    CONF_ENERGY_SENSOR_F3,
     EVENT_UPDATE_ARERA,
     CONF_HOUSE_TYPE,
     RESIDENTIAL,
@@ -54,6 +60,8 @@ from .const import (
     CONF_ASOS_SC1_MP,
     CONF_ARIM_SC1,
     CONF_ARIM_SC1_MP,
+    CONF_DISPATCH_SC1,
+    CONF_DISPATCH_SC1_MP,
 )
 from .interfaces import DEFAULT_ZONA, Fascia, PunData, PunValues, PunDataMP, PunValuesMP, Zona
 from .utils import extract_xml, extract_xml2, get_fascia, get_hour_datetime, get_next_date
@@ -91,6 +99,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.quota_power: float = 0.0
         self.asos_sc1: float = 0.0
         self.arim_sc1: float = 0.0
+        self.dispatch_sc1: float = 0.0
 
         # ARERA previous (mese-2) / MP variants
         self.energy_sc1_mp: float = 0.0
@@ -98,6 +107,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.quota_power_mp: float = 0.0
         self.asos_sc1_mp: float = 0.0
         self.arim_sc1_mp: float = 0.0
+        self.dispatch_sc1_mp: float = 0.0
 
         # PortaleOfferte (daily/monthly) current and previous
         self.port_asos_sc1: float = 0.0
@@ -125,6 +135,12 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.pun_mode = 0
         self.house_type = 0
         self.fixed_pun_value = 0
+        self.fixed_price_f1 = 0
+        self.fixed_price_f2 = 0
+        self.fixed_price_f3 = 0
+        self.energy_sensor_f1 = None
+        self.energy_sensor_f2 = None
+        self.energy_sensor_f3 = None
 
         # Salva la sessione client e la configurazione
         self.session = async_get_clientsession(hass)
@@ -133,7 +149,7 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.fix_quota_aggr_measure = config.options.get(CONF_FIX_QUOTA_AGGR_MEASURE, config.data[CONF_FIX_QUOTA_AGGR_MEASURE])
         self.monthly_fee = config.options.get(CONF_MONTHLY_FEE, config.data[CONF_MONTHLY_FEE])
         
-        self.other_fee = config.options.get(CONF_OTHER_FEE, config.data[CONF_OTHER_FEE])
+        self.other_fee = config.options.get(CONF_OTHER_FEE, config.data.get(CONF_OTHER_FEE, 0.0))
         self.monthly_entity_sensor = config.options.get(CONF_MONTHY_ENTITY_SENSOR, config.data[CONF_MONTHY_ENTITY_SENSOR])
 
         self.power_in_use = config.options.get(CONF_POWER_IN_USE, config.data[CONF_POWER_IN_USE])
@@ -143,6 +159,12 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
         self.pun_mode = config.options.get(CONF_PUN_MODE, config.data.get(CONF_PUN_MODE, PUN_MODE_CALCULATED))
         self.house_type = config.options.get(CONF_HOUSE_TYPE, config.data.get(CONF_HOUSE_TYPE, RESIDENTIAL))
         self.fixed_pun_value = config.options.get(CONF_FIXED_PUN_VALUE, config.data.get(CONF_FIXED_PUN_VALUE, 0.20))
+        self.fixed_price_f1 = config.options.get(CONF_FIXED_PRICE_F1, config.data.get(CONF_FIXED_PRICE_F1, 0.20))
+        self.fixed_price_f2 = config.options.get(CONF_FIXED_PRICE_F2, config.data.get(CONF_FIXED_PRICE_F2, 0.20))
+        self.fixed_price_f3 = config.options.get(CONF_FIXED_PRICE_F3, config.data.get(CONF_FIXED_PRICE_F3, 0.20))
+        self.energy_sensor_f1 = config.options.get(CONF_ENERGY_SENSOR_F1, config.data.get(CONF_ENERGY_SENSOR_F1))
+        self.energy_sensor_f2 = config.options.get(CONF_ENERGY_SENSOR_F2, config.data.get(CONF_ENERGY_SENSOR_F2))
+        self.energy_sensor_f3 = config.options.get(CONF_ENERGY_SENSOR_F3, config.data.get(CONF_ENERGY_SENSOR_F3))
 
 
         # Inizializza i valori di default
@@ -436,6 +458,10 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
                 if val is not None:
                     self.arim_sc1 = float(val)
 
+                val = mp.get(CONF_DISPATCH_SC1)
+                if val is not None:
+                    self.dispatch_sc1 = float(val)
+
             # mese-2 (mpp)
             if mpp:
                 val = mpp.get(CONF_ENERGY_SC1)
@@ -457,6 +483,10 @@ class PUNDataUpdateCoordinator(DataUpdateCoordinator):
                 val = mpp.get(CONF_ARIM_SC1)
                 if val is not None:
                     self.arim_sc1_mp = float(val)
+
+                val = mpp.get(CONF_DISPATCH_SC1)
+                if val is not None:
+                    self.dispatch_sc1_mp = float(val)
 
 
             # Notify that ARERA data has been updated
