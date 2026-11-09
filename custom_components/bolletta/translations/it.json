@@ -19,6 +19,12 @@
                "zona":"Zona geografica per prezzi zonali",
                "scan_hour":"Ora inizio download dati (0-23)",
                "fixed_pun_value":"Valore del PUN fisso",
+               "fixed_price_f1":"Prezzo fisso F1 (€/kWh)",
+               "fixed_price_f2":"Prezzo fisso F2 (€/kWh)",
+               "fixed_price_f3":"Prezzo fisso F3 (€/kWh)",
+               "energy_sensor_f1":"Sensore energia F1 (consumo mensile)",
+               "energy_sensor_f2":"Sensore energia F2 (consumo mensile)",
+               "energy_sensor_f3":"Sensore energia F3 (consumo mensile)",
 			   "house_type":"Tipologia abitazione"
             }
          },
