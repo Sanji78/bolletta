@@ -31,6 +31,10 @@ from .const import (
     BILL_TRANSPORT_POWER_QUOTE,
     BILL_TRANSPORT_ENERGY_QUOTE,
     BILL_ASOS_ARIM_QUOTE,
+    BILL_ENERGY_COST_F1,
+    BILL_ENERGY_COST_F2,
+    BILL_ENERGY_COST_F3,
+    BILL_ENERGY_COST_BANDS,
     BILL_ACCISA_TAX,
     BILL_IVA,
     BILL_TOTAL,
@@ -41,6 +45,7 @@ from .const import (
     EVENT_UPDATE_PREZZO_ZONALE,
     EVENT_UPDATE_PUN,
     PUN_MODE_FIXED,
+    PUN_MODE_FIXED_BANDS,
     CONF_ENERGY_SC1,
     CONF_ENERGY_SC1_MP,
     CONF_FIX_QUOTA_TRANSPORT,
@@ -49,6 +54,8 @@ from .const import (
     CONF_QUOTA_POWER_MP,
     CONF_ASOS_SC1,
     CONF_ASOS_SC1_MP,
+    CONF_DISPATCH_SC1,
+    CONF_DISPATCH_SC1_MP,
     CONF_ARIM_SC1,
     CONF_ARIM_SC1_MP,
 )
@@ -115,6 +122,9 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry,
     entities.append(BillSensorEntity(coordinator, BILL_IVA))
     entities.append(BillSensorEntity(coordinator, BILL_TOTAL))
     entities.append(BillSensorEntity(coordinator, BILL_KWH_PRICE))
+    entities.append(BillSensorEntity(coordinator, BILL_ENERGY_COST_F1))
+    entities.append(BillSensorEntity(coordinator, BILL_ENERGY_COST_F2))
+    entities.append(BillSensorEntity(coordinator, BILL_ENERGY_COST_F3))
     
     entities.extend(
         PUNSensorEntity(coordinator, fascia) for fascia in PunValues().value
@@ -134,6 +144,8 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry,
     entities.append(AreraSensorEntity(coordinator, CONF_ASOS_SC1_MP))
     entities.append(AreraSensorEntity(coordinator, CONF_ARIM_SC1))
     entities.append(AreraSensorEntity(coordinator, CONF_ARIM_SC1_MP))
+    entities.append(AreraSensorEntity(coordinator, CONF_DISPATCH_SC1))
+    entities.append(AreraSensorEntity(coordinator, CONF_DISPATCH_SC1_MP))
 
     # PortaleOfferte sensors - grouped under different device
     entities.append(PortaleOfferteSensorEntity(coordinator, "accisa_tax"))
@@ -420,6 +432,10 @@ class AreraSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 self._native_value = self.coordinator.arim_sc1
             elif self.tipo == CONF_ARIM_SC1_MP:
                 self._native_value = self.coordinator.arim_sc1_mp
+            elif self.tipo == CONF_DISPATCH_SC1:
+                self._native_value = self.coordinator.dispatch_sc1
+            elif self.tipo == CONF_DISPATCH_SC1_MP:
+                self._native_value = self.coordinator.dispatch_sc1_mp
             else:
                 return
             
@@ -487,6 +503,8 @@ class AreraSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             "asos_sc1_mp",
             "arim_sc1",
             "arim_sc1_mp",
+            "dispatch_sc1",
+            "dispatch_sc1_mp",
         }
 
         if self.tipo in eur_per_month_keys:
@@ -522,6 +540,8 @@ class AreraSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             CONF_ASOS_SC1_MP: "ASOS Mese Precedente",
             CONF_ARIM_SC1: "ARIM",
             CONF_ARIM_SC1_MP: "ARIM Mese Precedente",
+            CONF_DISPATCH_SC1: "Dispacciamento (CDISPD)",
+            CONF_DISPATCH_SC1_MP: "Dispacciamento (CDISPD) Mese Precedente",
         }
         return names.get(self.tipo, "Parametro Arera")
 
@@ -569,6 +589,8 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             self.entity_id = ENTITY_ID_FORMAT.format('bill_iva')
         elif (self.tipo == BILL_TOTAL):
             self.entity_id = ENTITY_ID_FORMAT.format('bill_total')
+        elif self.tipo in BILL_ENERGY_COST_BANDS:
+            self.entity_id = ENTITY_ID_FORMAT.format(f'bill_energy_cost_f{self.tipo - BILL_ENERGY_COST_F1 + 1}')
         else:
             self.entity_id = None
         self._attr_unique_id = self.entity_id
@@ -596,6 +618,38 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             "model": "Calcolo della Bolletta Elettrica",
         }
         
+    def get_dispatch_fee(self, previous=False):
+        """Dispacciamento ARERA (CDISPD, €/kWh): mese-1, o mese-2 per il periodo precedente."""
+        value = self.coordinator.dispatch_sc1_mp if previous else self.coordinator.dispatch_sc1
+        if not value:
+            raise ValueError("CDISPD ARERA non disponibile")
+        return float(value)
+
+    def _update_band_cost(self, include_last_period):
+        """Spesa energia della singola fascia (solo tariffa fissa a fasce)."""
+        try:
+            if self.coordinator.pun_mode != PUN_MODE_FIXED_BANDS:
+                raise ValueError("Disponibile solo con tariffa fissa a fasce")
+            band_sensor, band_price = {
+                BILL_ENERGY_COST_F1: (self.coordinator.energy_sensor_f1, self.coordinator.fixed_price_f1),
+                BILL_ENERGY_COST_F2: (self.coordinator.energy_sensor_f2, self.coordinator.fixed_price_f2),
+                BILL_ENERGY_COST_F3: (self.coordinator.energy_sensor_f3, self.coordinator.fixed_price_f3),
+            }[self.tipo]
+            band_state = self.hass.states.get(band_sensor)
+            band_kwh = [(float(band_state.state), self.get_dispatch_fee())]
+            if include_last_period:
+                band_kwh.append((float(band_state.attributes['last_period']), self.get_dispatch_fee(previous=True)))
+            total = 0.0
+            for kwh, dispatch_fee in band_kwh:
+                total += round(kwh * float(band_price), 2)
+                total += round(kwh * (float(self.coordinator.nw_loss_percentage) * float(band_price)), 2)
+                total += round(kwh * dispatch_fee, 2)
+            self._native_value = round(total, 2)
+            self._available = True
+        except Exception:
+            self._available = False
+        self.async_write_ha_state()
+
     def manage_update(self):
         global bill_total_energy_fix_quote
         global bill_total_energy_energy_quote
@@ -624,6 +678,10 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             else:
                 include_last_period = (current_month % 2) == 0   # Gen/Feb, Mar/Apr…
 
+        if self.tipo in BILL_ENERGY_COST_BANDS:
+            self._update_band_cost(include_last_period)
+            return
+
 
         if self.tipo==BILL_KWH_PRICE:  
             try:
@@ -632,11 +690,18 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
                 # nw_loss_percentage (lambda di ilportaleofferte) è già una frazione (es. 0.10).
                 if self.coordinator.pun_mode == PUN_MODE_FIXED:
                     pun_value = float(self.coordinator.fixed_pun_value)
+                elif self.coordinator.pun_mode == PUN_MODE_FIXED_BANDS:
+                    fascia_prices = {
+                        Fascia.F1: self.coordinator.fixed_price_f1,
+                        Fascia.F2: self.coordinator.fixed_price_f2,
+                        Fascia.F3: self.coordinator.fixed_price_f3,
+                    }
+                    pun_value = float(fascia_prices[self.coordinator.fascia_corrente])
                 else:
                     pun_value = float(self.hass.states.get('sensor.pun_mono_orario').state)
                 total = pun_value
                 total += float(self.coordinator.nw_loss_percentage) * pun_value
-                total += float(self.coordinator.other_fee)
+                total += self.get_dispatch_fee()
 
                 total += self.coordinator.energy_sc1
                 total += self.coordinator.asos_sc1
@@ -668,34 +733,49 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             try:
                 total = 0
 
-                if self.coordinator.pun_mode == PUN_MODE_FIXED:
+                if self.coordinator.pun_mode == PUN_MODE_FIXED_BANDS:
+                    for band_sensor, band_price in (
+                        (self.coordinator.energy_sensor_f1, self.coordinator.fixed_price_f1),
+                        (self.coordinator.energy_sensor_f2, self.coordinator.fixed_price_f2),
+                        (self.coordinator.energy_sensor_f3, self.coordinator.fixed_price_f3),
+                    ):
+                        band_state = self.hass.states.get(band_sensor)
+                        band_kwh = [(float(band_state.state), self.get_dispatch_fee())]
+                        if include_last_period:
+                            band_kwh.append((float(band_state.attributes['last_period']), self.get_dispatch_fee(previous=True)))
+                        for kwh, dispatch_fee in band_kwh:
+                            total += round(kwh * float(band_price), 2)
+                            total += round(kwh * (float(self.coordinator.nw_loss_percentage) * float(band_price)), 2)
+                            total += round(kwh * dispatch_fee, 2)
+                            total = float(f"{total:.2f}")
+                elif self.coordinator.pun_mode == PUN_MODE_FIXED:
                     pun_value = self.coordinator.fixed_pun_value
                     total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) *  float(pun_value), 2)
                     total = float(f"{total:.2f}")
                     total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.nw_loss_percentage)) *  float(pun_value)), 2)
                     total = float(f"{total:.2f}")
-                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.other_fee))), 2)
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((self.get_dispatch_fee())), 2)
                     total = float(f"{total:.2f}")
                     if include_last_period:
                         total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) *  float(pun_value), 2)
                         total = float(f"{total:.2f}")
                         total += round((float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.nw_loss_percentage)) *  float(pun_value))), 2)
                         total = float(f"{total:.2f}")
-                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.other_fee))), 2)
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((self.get_dispatch_fee(previous=True))), 2)
                         total = float(f"{total:.2f}")
                 else:
                     total = round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) *  float(self.hass.states.get('sensor.pun_mono_orario').state), 2)
                     total = float(f"{total:.2f}")
                     total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.nw_loss_percentage)) *  float(self.hass.states.get('sensor.pun_mono_orario').state)), 2)
                     total = float(f"{total:.2f}")
-                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((float(self.coordinator.other_fee))), 2)
+                    total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).state) * ((self.get_dispatch_fee())), 2)
                     total = float(f"{total:.2f}")
                     if include_last_period:
                         total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) *  float(self.hass.states.get('sensor.pun_mono_orario_mp').state) , 2)
                         total = float(f"{total:.2f}")
                         total += round((float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.nw_loss_percentage)) *  float(self.hass.states.get('sensor.pun_mono_orario_mp').state))), 2)
                         total = float(f"{total:.2f}")
-                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((float(self.coordinator.other_fee))), 2)
+                        total += round(float(self.hass.states.get(self.coordinator.monthly_entity_sensor).attributes['last_period']) * ((self.get_dispatch_fee(previous=True))), 2)
                         total = float(f"{total:.2f}")
                      
                 self._available = True
@@ -899,6 +979,12 @@ class BillSensorEntity(CoordinatorEntity, SensorEntity, RestoreEntity):
             return "Totale IVA"
         elif (self.tipo == BILL_TOTAL):
             return "Totale Fattura"
+        elif (self.tipo == BILL_ENERGY_COST_F1):
+            return "Spesa per l'energia - Fascia F1"
+        elif (self.tipo == BILL_ENERGY_COST_F2):
+            return "Spesa per l'energia - Fascia F2"
+        elif (self.tipo == BILL_ENERGY_COST_F3):
+            return "Spesa per l'energia - Fascia F3"
         else:
             return None
 
