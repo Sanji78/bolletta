@@ -13,6 +13,10 @@ BILL_ACCISA_TAX = 7
 BILL_IVA = 8
 BILL_TOTAL = 9
 BILL_KWH_PRICE = 10
+BILL_ENERGY_COST_F1 = 11
+BILL_ENERGY_COST_F2 = 12
+BILL_ENERGY_COST_F3 = 13
+BILL_ENERGY_COST_BANDS = (BILL_ENERGY_COST_F1, BILL_ENERGY_COST_F2, BILL_ENERGY_COST_F3)
 
 # Parametri configurabili
 CONF_FIX_QUOTA_AGGR_MEASURE = "fix_quota_aggr_measure"
@@ -39,6 +43,8 @@ CONF_ASOS_SC1 = "asos_sc1"
 CONF_ASOS_SC1_MP = "asos_sc1_mp"
 CONF_ARIM_SC1 = "arim_sc1"
 CONF_ARIM_SC1_MP = "arim_sc1_mp"
+CONF_DISPATCH_SC1 = "dispatch_sc1"
+CONF_DISPATCH_SC1_MP = "dispatch_sc1_mp"
 
 
 # Tipi di sensore da creare
@@ -70,6 +76,13 @@ CONF_PUN_MODE = "pun_mode"
 CONF_FIXED_PUN_VALUE = "fixed_pun_value"
 PUN_MODE_CALCULATED = "calculated"
 PUN_MODE_FIXED = "fixed"
+PUN_MODE_FIXED_BANDS = "fixed_bands"
+CONF_FIXED_PRICE_F1 = "fixed_price_f1"
+CONF_FIXED_PRICE_F2 = "fixed_price_f2"
+CONF_FIXED_PRICE_F3 = "fixed_price_f3"
+CONF_ENERGY_SENSOR_F1 = "energy_sensor_f1"
+CONF_ENERGY_SENSOR_F2 = "energy_sensor_f2"
+CONF_ENERGY_SENSOR_F3 = "energy_sensor_f3"
 
 # Abitazione
 CONF_HOUSE_TYPE = "house_type"
