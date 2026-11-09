@@ -75,7 +75,6 @@
                "fix_quota_aggr_measure":"Fixed fee - Measurement aggregation (€/month)",
                "monthly_fee":"Monthly contribution (€/month)",
                "tariff_type":"Tariff type",
-               "other_fee":"Other charges - Dispatching (€/kWh)",
                "pun_mode":"PUN usage mode"
             }
          },
