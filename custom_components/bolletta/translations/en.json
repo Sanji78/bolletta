@@ -8,7 +8,6 @@
                "fix_quota_aggr_measure":"Fixed fee - Measurement aggregation (€/month)",
                "monthly_fee":"Monthly contribution (€/month)",
                "tariff_type":"Tariff type",
-               "other_fee":"Other charges - Dispatching (€/kWh)",
                "pun_mode":"PUN usage mode"
             }
          },
@@ -20,6 +19,12 @@
                "zona":"Geographical zone for zonal prices",
                "scan_hour":"Download start hour (0-23)",
                "fixed_pun_value":"Fixed PUN value",
+               "fixed_price_f1":"Fixed price F1 (€/kWh)",
+               "fixed_price_f2":"Fixed price F2 (€/kWh)",
+               "fixed_price_f3":"Fixed price F3 (€/kWh)",
+               "energy_sensor_f1":"Energy sensor F1 (monthly consumption)",
+               "energy_sensor_f2":"Energy sensor F2 (monthly consumption)",
+               "energy_sensor_f3":"Energy sensor F3 (monthly consumption)",
 			   "house_type":"Type of dwelling"
             }
          },
@@ -50,7 +55,8 @@
       "pun_mode":{
          "options":{
             "calculated":"Calculated by GSE",
-            "fixed":"Fixed"
+            "fixed":"Fixed",
+            "fixed_bands":"Fixed by time band (F1/F2/F3)"
          }
       },
 	  "house_type":{
@@ -81,6 +87,12 @@
                "zona":"Geographical zone for zonal prices",
                "scan_hour":"Download start hour (0-23)",
                "fixed_pun_value":"Fixed PUN value",
+               "fixed_price_f1":"Fixed price F1 (€/kWh)",
+               "fixed_price_f2":"Fixed price F2 (€/kWh)",
+               "fixed_price_f3":"Fixed price F3 (€/kWh)",
+               "energy_sensor_f1":"Energy sensor F1 (monthly consumption)",
+               "energy_sensor_f2":"Energy sensor F2 (monthly consumption)",
+               "energy_sensor_f3":"Energy sensor F3 (monthly consumption)",
 			   "house_type":"Type of dwelling"
             }
          },
