@@ -21,7 +21,8 @@ from .const import (
     CONF_FIX_QUOTA_TRANSPORT,
     CONF_QUOTA_POWER,
     CONF_ASOS_SC1,
-    CONF_ARIM_SC1
+    CONF_ARIM_SC1,
+    CONF_DISPATCH_SC1
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -216,6 +217,13 @@ class AreraClient:
                 if v is not None:
                     parameters[CONF_ARIM_SC1] = v
                     _LOGGER.debug("ARIM trovato in r%d c%d -> %s", asos_arim_value_row, c, v)
+
+            # CDISPD (dispacciamento, euro/kWh): stessa riga di ASOS/ARIM
+            if 'cdispd' in header_text and CONF_DISPATCH_SC1 not in parameters:
+                v = _parse_numeric(sheet.cell(row=asos_arim_value_row, column=c).value)
+                if v is not None:
+                    parameters[CONF_DISPATCH_SC1] = v
+                    _LOGGER.debug("CDISPD trovato in r%d c%d -> %s", asos_arim_value_row, c, v)
 
             # detect "servizi di rete" even if it contains newlines or extra spaces
             if 'tariffa' in header_text and 'rete' in header_text:
